@@ -1,5 +1,9 @@
 # Moshi-Finetune
 
+> **Note:** This repository is a fork of the official `kyutai-labs/moshi-finetune` repository, customized for the **PersonaPlex Outbound Call Fine-Tuning** project. It includes custom data generation scripts (`generate_transcripts.py`, `generate_audio_dia2.py`), a Gradio UI (`gradio_app.py`), and an automated pipeline (`run_pipeline.sh`). Please refer to `ENGINEERING_HANDOFF.md` for project-specific instructions.
+
+---
+
 <a target="_blank" href="https://colab.research.google.com/github//kyutai-labs/moshi-finetune/blob/main/tutorials/moshi_finetune.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
