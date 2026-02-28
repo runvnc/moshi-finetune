@@ -59,7 +59,7 @@ def save_transcripts_df(df):
     except Exception as e:
         raise gr.Error(f"Failed to save dataset: Invalid JSON format. {str(e)}")
 
-def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
+def generate_transcripts(api_key, model_name, system_prompt, scenario, num_samples, num_turns):
     if not api_key:
         yield "Error: Please provide a Gemini API Key.", gr.update()
         return
@@ -71,6 +71,9 @@ def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
     
     prompt = f"""
     You are an expert dialogue writer. Generate {num_samples} unique, short dialogue transcripts.
+    
+    The AI Agent (Speaker B) has the following System Prompt / Persona:
+    {system_prompt}
     
     Scenario:
     {scenario}
@@ -338,7 +341,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
         num_samples.change(lambda x: save_config("num_samples", x), inputs=[num_samples])
         num_turns.change(lambda x: save_config("num_turns", x), inputs=[num_turns])
 
-        gen_text_btn.click(generate_transcripts, inputs=[api_key, model_name, scenario, num_samples, num_turns], outputs=[text_output, dataset_df])
+        gen_text_btn.click(generate_transcripts, inputs=[api_key, model_name, system_prompt, scenario, num_samples, num_turns], outputs=[text_output, dataset_df])
         dataset_df.change(save_transcripts_df, inputs=[dataset_df])
 
     with gr.Tab("2. Generate Audio (Dia2)"):
