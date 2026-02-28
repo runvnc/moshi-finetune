@@ -99,3 +99,6 @@ filterwarnings = [
 ]
 testpaths = []
 addopts = "--ignore=third_party --ignore=tokens"
+
+[tool.uv.extra-build-dependencies]
+openai-whisper = ["setuptools"]
