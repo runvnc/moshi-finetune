@@ -5,6 +5,23 @@ import subprocess
 import glob
 import google.generativeai as genai
 
+CONFIG_FILE = "ui_config.json"
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
+
+def save_config(key, value):
+    config = load_config()
+    config[key] = value
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
+
 def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
     if not api_key:
         return "Error: Please provide a Gemini API Key."
@@ -208,6 +225,8 @@ def export_model():
     yield "\nYou can load this into the Moshi server using the --lora-weight argument."
 
 # --- Gradio UI Layout ---
+config = load_config()
+
 with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
     gr.Markdown("# 🎛️ Moshi / PersonaPlex Fine-Tuning Studio")
     gr.Markdown("Generate synthetic dialogue data and fine-tune your audio language model end-to-end.")
@@ -215,20 +234,27 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
     with gr.Tab("1. Generate Transcripts"):
         with gr.Row():
             with gr.Column():
-                api_key = gr.Textbox(label="Gemini API Key", type="password")
-                model_name = gr.Dropdown(choices=["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-2.5-flash", "gemini-1.5-pro"], value="gemini-3-flash-preview", label="Gemini Model")
+                api_key = gr.Textbox(label="Gemini API Key", type="password", value=config.get("api_key", ""))
+                model_name = gr.Dropdown(choices=["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-2.5-flash", "gemini-1.5-pro"], value=config.get("model_name", "gemini-3-flash-preview"), label="Gemini Model")
                 scenario = gr.Textbox(
                     label="Dialogue Scenario Description", 
                     lines=5, 
+                    value=config.get("scenario", ""),
                     placeholder="e.g., Agent Alexis Kim calling a business to verify pre-employment background checks..."
                 )
-                num_samples = gr.Slider(minimum=1, maximum=500, value=50, step=1, label="Number of Conversations")
-                num_turns = gr.Slider(minimum=2, maximum=20, value=6, step=1, label="Target Turns per Conversation")
+                num_samples = gr.Slider(minimum=1, maximum=500, value=config.get("num_samples", 50), step=1, label="Number of Conversations")
+                num_turns = gr.Slider(minimum=2, maximum=20, value=config.get("num_turns", 6), step=1, label="Target Turns per Conversation")
                 gen_text_btn = gr.Button("Generate Transcripts", variant="primary")
             
             with gr.Column():
                 text_output = gr.Textbox(label="Output / Preview", lines=15)
                 
+        api_key.change(lambda x: save_config("api_key", x), inputs=[api_key])
+        model_name.change(lambda x: save_config("model_name", x), inputs=[model_name])
+        scenario.change(lambda x: save_config("scenario", x), inputs=[scenario])
+        num_samples.change(lambda x: save_config("num_samples", x), inputs=[num_samples])
+        num_turns.change(lambda x: save_config("num_turns", x), inputs=[num_turns])
+
         gen_text_btn.click(generate_transcripts, inputs=[api_key, model_name, scenario, num_samples, num_turns], outputs=text_output)
 
     with gr.Tab("2. Generate Audio (Dia2)"):
@@ -242,32 +268,42 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
         gr.Markdown("Download a subset of the DailyTalk dataset to mix with your synthetic data. This prevents catastrophic forgetting and keeps the voice sounding natural.")
         with gr.Row():
             with gr.Column():
-                dt_samples = gr.Slider(minimum=50, maximum=2000, value=200, step=50, label="Number of DailyTalk Samples to Download")
+                dt_samples = gr.Slider(minimum=50, maximum=2000, value=config.get("dt_samples", 200), step=50, label="Number of DailyTalk Samples to Download")
                 download_dt_btn = gr.Button("Download DailyTalk Subset", variant="secondary")
             with gr.Column():
                 dt_output = gr.Textbox(label="Download Logs", lines=10)
                 
+        dt_samples.change(lambda x: save_config("dt_samples", x), inputs=[dt_samples])
         download_dt_btn.click(download_dailytalk, inputs=[dt_samples], outputs=dt_output)
 
     with gr.Tab("4. Train Model (LoRA)"):
         with gr.Row():
             with gr.Column():
-                base_model = gr.Dropdown(choices=["kyutai/moshiko-pytorch-bf16", "nvidia/personaplex-7b-v1"], value="kyutai/moshiko-pytorch-bf16", label="Base Model", info="Select the base Moshi model to fine-tune.")
-                max_steps = gr.Slider(minimum=10, maximum=2000, value=50, step=10, label="Max Training Steps", info="For 100 examples, 50 steps is usually enough.")
-                batch_size = gr.Slider(minimum=4, maximum=64, value=16, step=4, label="Batch Size", info="Increase to 32 or 48 if you have an H200/A100. Keep at 8-16 for 24GB GPUs.")
-                lr = gr.Textbox(label="Learning Rate", value="2e-6", info="Default is 2e-6.")
-                mix_dailytalk = gr.Checkbox(label="Mix with DailyTalk Subset (70/30 split)", value=True, info="Requires downloading the subset in Step 3 first.")
+                base_model = gr.Dropdown(choices=["kyutai/moshiko-pytorch-bf16", "nvidia/personaplex-7b-v1"], value=config.get("base_model", "kyutai/moshiko-pytorch-bf16"), label="Base Model", info="Select the base Moshi model to fine-tune.")
+                max_steps = gr.Slider(minimum=10, maximum=2000, value=config.get("max_steps", 50), step=10, label="Max Training Steps", info="For 100 examples, 50 steps is usually enough.")
+                batch_size = gr.Slider(minimum=4, maximum=64, value=config.get("batch_size", 16), step=4, label="Batch Size", info="Increase to 32 or 48 if you have an H200/A100. Keep at 8-16 for 24GB GPUs.")
+                lr = gr.Textbox(label="Learning Rate", value=config.get("lr", "2e-6"), info="Default is 2e-6.")
+                mix_dailytalk = gr.Checkbox(label="Mix with DailyTalk Subset (70/30 split)", value=config.get("mix_dailytalk", True), info="Requires downloading the subset in Step 3 first.")
                 
                 with gr.Accordion("Advanced LoRA & Memory Parameters", open=False):
-                    lora_rank = gr.Slider(minimum=8, maximum=256, value=32, step=8, label="LoRA Rank", info="Lower rank (e.g., 32) uses less memory and prevents overfitting on small datasets.")
-                    lora_scaling = gr.Slider(minimum=0.5, maximum=4.0, value=2.0, step=0.5, label="LoRA Scaling (Alpha)", info="Multiplier for the LoRA weights.")
-                    duration_sec = gr.Slider(minimum=10, maximum=100, value=100, step=10, label="Max Audio Duration (sec)", info="Reduce to 30-50 if you run out of VRAM on 24GB GPUs.")
+                    lora_rank = gr.Slider(minimum=8, maximum=256, value=config.get("lora_rank", 32), step=8, label="LoRA Rank", info="Lower rank (e.g., 32) uses less memory and prevents overfitting on small datasets.")
+                    lora_scaling = gr.Slider(minimum=0.5, maximum=4.0, value=config.get("lora_scaling", 2.0), step=0.5, label="LoRA Scaling (Alpha)", info="Multiplier for the LoRA weights.")
+                    duration_sec = gr.Slider(minimum=10, maximum=100, value=config.get("duration_sec", 100), step=10, label="Max Audio Duration (sec)", info="Reduce to 30-50 if you run out of VRAM on 24GB GPUs.")
 
                 train_btn = gr.Button("Start Fine-Tuning", variant="primary")
             
             with gr.Column():
                 train_output = gr.Textbox(label="Training Logs", lines=20)
                 
+        base_model.change(lambda x: save_config("base_model", x), inputs=[base_model])
+        max_steps.change(lambda x: save_config("max_steps", x), inputs=[max_steps])
+        batch_size.change(lambda x: save_config("batch_size", x), inputs=[batch_size])
+        lr.change(lambda x: save_config("lr", x), inputs=[lr])
+        mix_dailytalk.change(lambda x: save_config("mix_dailytalk", x), inputs=[mix_dailytalk])
+        lora_rank.change(lambda x: save_config("lora_rank", x), inputs=[lora_rank])
+        lora_scaling.change(lambda x: save_config("lora_scaling", x), inputs=[lora_scaling])
+        duration_sec.change(lambda x: save_config("duration_sec", x), inputs=[duration_sec])
+
         train_btn.click(run_training, inputs=[base_model, max_steps, batch_size, lr, mix_dailytalk, lora_rank, lora_scaling, duration_sec], outputs=train_output)
 
     with gr.Tab("5. Export Model"):
