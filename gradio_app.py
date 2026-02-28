@@ -20,10 +20,9 @@ def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
     {scenario}
     
     Format Requirements:
-    - Speaker A is the User (the person answering the phone).
-    - Speaker B is the Agent (the AI caller).
-    - CRITICAL: Speaker A MUST speak first in every single conversation. The conversation must always start with the User answering the phone (e.g., "Hello?", "Acme Corp, how can I help you?").
-    - Speaker B (the Agent) speaks second, introducing themselves and stating the purpose of the call.
+    - Speaker A is the User.
+    - Speaker B is the AI Agent.
+    - Follow the scenario description closely for who speaks first and the tone of the conversation.
     - Each conversation should be approximately {num_turns} turns long, including a natural back-and-forth exchange.
     - Output strictly as a JSON array of conversations. Each conversation is an array of turn objects.
     
@@ -31,7 +30,7 @@ def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
     [
       [
         {{"speaker": "A", "text": "Hello?"}},
-        {{"speaker": "B", "text": "Hi, this is Alexis. I'm calling about..."}}
+        {{"speaker": "B", "text": "Hi, how can I help you today?"}}
       ]
     ]
     
@@ -50,8 +49,8 @@ def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
         
         data = json.loads(response.text)
         
-        os.makedirs("data/outbound", exist_ok=True)
-        output_file = "data/outbound/raw_transcripts.json"
+        os.makedirs("data/custom_dataset", exist_ok=True)
+        output_file = "data/custom_dataset/raw_transcripts.json"
         with open(output_file, "w") as f:
             json.dump(data, f, indent=2)
             
@@ -137,9 +136,9 @@ print(f'\nDone! Subset saved to {{output_dir}}')
 def run_training(max_steps, batch_size, learning_rate, mix_dailytalk):
     yield "Starting LoRA Fine-Tuning...\n"
     
-    train_data = "'/files/moshi-finetune/data/outbound/dataset.jsonl'"
+    train_data = "'/files/moshi-finetune/data/custom_dataset/dataset.jsonl'"
     if mix_dailytalk:
-        train_data = "'/files/moshi-finetune/data/outbound/dataset.jsonl:0.7,/files/moshi-finetune/data/dailytalk_subset/dailytalk_subset.jsonl:0.3'"
+        train_data = "'/files/moshi-finetune/data/custom_dataset/dataset.jsonl:0.7,/files/moshi-finetune/data/dailytalk_subset/dailytalk_subset.jsonl:0.3'"
     
     # Update config.yaml
     config_content = f"""# data
@@ -182,7 +181,7 @@ ckpt_freq: 100
 
 save_adapters: true
 
-run_dir: "/files/moshi-finetune/output/personaplex-custom"
+run_dir: "/files/moshi-finetune/output/custom_model"
 """
     with open("config_custom.yaml", "w") as f:
         f.write(config_content)
@@ -194,10 +193,10 @@ run_dir: "/files/moshi-finetune/output/personaplex-custom"
 def export_model():
     yield "Finding latest LoRA checkpoint...\n"
     
-    checkpoints = glob.glob("output/personaplex-custom/checkpoints/checkpoint_*")
+    checkpoints = glob.glob("output/custom_model/checkpoints/checkpoint_*")
     
     if not checkpoints:
-        yield "❌ Error: No training checkpoints found in output/personaplex-custom/"
+        yield "❌ Error: No training checkpoints found in output/custom_model/"
         return
         
     latest_checkpoint = sorted(checkpoints, key=lambda x: int(x.split("_")[-1]))[-1]

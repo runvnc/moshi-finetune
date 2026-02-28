@@ -4,7 +4,7 @@
 set -e
 
 echo "===================================================="
-echo " PersonaPlex Outbound Call Fine-Tuning Pipeline"
+echo " Moshi Synthetic Fine-Tuning Pipeline"
 echo "===================================================="
 
 # 1. Generate Transcripts (Requires GEMINI_API_KEY)

@@ -127,9 +127,9 @@ def process_transcript(transcript, dia_model, config, output_audio_path, output_
     return waveform.shape[1] / sample_rate
 
 def main():
-    input_file = "data/outbound/raw_transcripts.json"
-    audio_dir = "data/outbound/audio"
-    dataset_jsonl = "data/outbound/dataset.jsonl"
+    input_file = "data/custom_dataset/raw_transcripts.json"
+    audio_dir = "data/custom_dataset/audio"
+    dataset_jsonl = "data/custom_dataset/dataset.jsonl"
     
     os.makedirs(audio_dir, exist_ok=True)
     
