@@ -4,6 +4,7 @@ import json
 import subprocess
 import glob
 import google.generativeai as genai
+import pandas as pd
 
 CONFIG_FILE = "ui_config.json"
 
@@ -22,11 +23,38 @@ def save_config(key, value):
     with open(CONFIG_FILE, "w") as f:
         json.dump(config, f, indent=2)
 
+def load_transcripts_df():
+    file_path = "data/custom_dataset/raw_transcripts.json"
+    if not os.path.exists(file_path):
+        return pd.DataFrame(columns=["ID", "Turns", "Preview", "Full JSON"])
+    
+    try:
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        
+        rows = []
+        for i, convo in enumerate(data):
+            turns = len(convo)
+            preview = convo[0].get("text", "")[:50] + "..." if turns > 0 else "Empty"
+            rows.append([i, turns, preview, json.dumps(convo)])
+        return pd.DataFrame(rows, columns=["ID", "Turns", "Preview", "Full JSON"])
+    except Exception as e:
+        print(f"Error loading transcripts: {e}")
+        return pd.DataFrame(columns=["ID", "Turns", "Preview", "Full JSON"])
+
+def save_transcripts_df(df):
+    file_path = "data/custom_dataset/raw_transcripts.json"
+    data = [json.loads(row) for row in df["Full JSON"].tolist()]
+    with open(file_path, "w") as f:
+        json.dump(data, f, indent=2)
+
 def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
     if not api_key:
-        return "Error: Please provide a Gemini API Key."
+        yield "Error: Please provide a Gemini API Key.", gr.update()
+        return
     if not scenario:
-        return "Error: Please provide a scenario description."
+        yield "Error: Please provide a scenario description.", gr.update()
+        return
         
     genai.configure(api_key=api_key)
     
@@ -55,27 +83,48 @@ def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
     """
     
     try:
+        yield "Connecting to Gemini API...\n", gr.update()
         model = genai.GenerativeModel(model_name)
         response = model.generate_content(
             prompt,
             generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
                 temperature=0.7,
-            )
+            ),
+            stream=True
         )
         
-        data = json.loads(response.text)
+        full_text = ""
+        for chunk in response:
+            full_text += chunk.text
+            yield full_text, gr.update()
+            
+        # Clean up markdown formatting if present
+        clean_text = full_text.strip()
+        if clean_text.startswith("```json"):
+            clean_text = clean_text[7:-3].strip()
+        elif clean_text.startswith("```"):
+            clean_text = clean_text[3:-3].strip()
+            
+        new_data = json.loads(clean_text)
         
         os.makedirs("data/custom_dataset", exist_ok=True)
         output_file = "data/custom_dataset/raw_transcripts.json"
+        
+        # Append to existing data
+        existing_data = []
+        if os.path.exists(output_file):
+            with open(output_file, "r") as f:
+                existing_data = json.load(f)
+                
+        combined_data = existing_data + new_data
+        
         with open(output_file, "w") as f:
-            json.dump(data, f, indent=2)
+            json.dump(combined_data, f, indent=2)
             
-        preview = json.dumps(data[0], indent=2) if data else "No data generated."
-        return f"Successfully generated {len(data)} transcripts! Saved to {output_file}.\n\nPreview of first transcript:\n{preview}"
+        yield full_text + f"\n\n\n✅ Successfully generated {len(new_data)} new transcripts! Total dataset size: {len(combined_data)}.", load_transcripts_df()
         
     except Exception as e:
-        return f"Failed to generate transcripts: {str(e)}"
+        yield f"Failed to generate transcripts: {str(e)}", gr.update()
 
 def run_command(command):
     try:
@@ -231,7 +280,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
     gr.Markdown("# 🎛️ Moshi / PersonaPlex Fine-Tuning Studio")
     gr.Markdown("Generate synthetic dialogue data and fine-tune your audio language model end-to-end.")
     
-    with gr.Tab("1. Generate Transcripts"):
+    with gr.Tab("1. Dataset Generation & Management"):
         with gr.Row():
             with gr.Column():
                 api_key = gr.Textbox(label="Gemini API Key", type="password", value=config.get("api_key", ""))
@@ -247,15 +296,20 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
                 gen_text_btn = gr.Button("Generate Transcripts", variant="primary")
             
             with gr.Column():
-                text_output = gr.Textbox(label="Output / Preview", lines=15)
+                text_output = gr.Textbox(label="Live Generation Stream", lines=15)
                 
+        gr.Markdown("### 📂 Current Dataset Manager")
+        gr.Markdown("This table shows all conversations currently saved in your dataset. You can edit or delete rows here, and it will automatically save to `raw_transcripts.json`.")
+        dataset_df = gr.Dataframe(value=load_transcripts_df, headers=["ID", "Turns", "Preview", "Full JSON"], interactive=True, wrap=True)
+
         api_key.change(lambda x: save_config("api_key", x), inputs=[api_key])
         model_name.change(lambda x: save_config("model_name", x), inputs=[model_name])
         scenario.change(lambda x: save_config("scenario", x), inputs=[scenario])
         num_samples.change(lambda x: save_config("num_samples", x), inputs=[num_samples])
         num_turns.change(lambda x: save_config("num_turns", x), inputs=[num_turns])
 
-        gen_text_btn.click(generate_transcripts, inputs=[api_key, model_name, scenario, num_samples, num_turns], outputs=text_output)
+        gen_text_btn.click(generate_transcripts, inputs=[api_key, model_name, scenario, num_samples, num_turns], outputs=[text_output, dataset_df])
+        dataset_df.change(save_transcripts_df, inputs=[dataset_df])
 
     with gr.Tab("2. Generate Audio (Dia2)"):
         gr.Markdown("This step uses Dia2 to generate the audio and timestamps based on the transcripts generated in Step 1.")
