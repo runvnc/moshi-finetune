@@ -52,9 +52,12 @@ def load_transcripts_df():
 
 def save_transcripts_df(df):
     file_path = "data/custom_dataset/raw_transcripts.json"
-    data = [{"id": row_id, "dialogue": json.loads(dialogue_str)} for row_id, dialogue_str in zip(df["ID"], df["Full JSON"])]
-    with open(file_path, "w") as f:
-        json.dump(data, f, indent=2)
+    try:
+        data = [{"id": row_id, "dialogue": json.loads(dialogue_str)} for row_id, dialogue_str in zip(df["ID"], df["Full JSON"])]
+        with open(file_path, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        raise gr.Error(f"Failed to save dataset: Invalid JSON format. {str(e)}")
 
 def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
     if not api_key:
@@ -272,11 +275,19 @@ def export_model():
     
     checkpoints = glob.glob("output/custom_model/checkpoints/checkpoint_*")
     
-    if not checkpoints:
+    valid_checkpoints = []
+    for c in checkpoints:
+        try:
+            step = int(c.split("_")[-1])
+            valid_checkpoints.append((step, c))
+        except ValueError:
+            pass
+
+    if not valid_checkpoints:
         yield "❌ Error: No training checkpoints found in output/custom_model/"
         return
         
-    latest_checkpoint = sorted(checkpoints, key=lambda x: int(x.split("_")[-1]))[-1]
+    latest_checkpoint = sorted(valid_checkpoints)[-1][1]
     step_name = os.path.basename(latest_checkpoint)
     
     yield f"Found latest checkpoint: {step_name}\n"
