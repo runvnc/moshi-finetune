@@ -105,7 +105,6 @@ def process_transcript(transcript, dia_model, config, output_audio_path, output_
     if audio_data.ndim == 1:
         audio_data = np.expand_dims(audio_data, axis=1)
     waveform = torch.from_numpy(audio_data).T.float()
-    waveform, sample_rate = torchaudio.load(temp_wav, backend="soundfile")
     
     # Create two empty channels
     left_channel = torch.zeros_like(waveform)
