@@ -133,7 +133,7 @@ print(f'\nDone! Subset saved to {{output_dir}}')
     for log in run_command("uv pip install huggingface_hub tqdm && uv run download_dailytalk_temp.py"):
         yield log
 
-def run_training(max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
+def run_training(base_model, max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
     yield "Starting LoRA Fine-Tuning...\n"
     
     train_data = "'/files/moshi-finetune/data/custom_dataset/dataset.jsonl'"
@@ -149,7 +149,7 @@ data:
 
 # model
 moshi_paths: 
-  hf_repo_id: "kyutai/moshiko-pytorch-bf16"
+  hf_repo_id: "{base_model}"
 
 full_finetuning: false
 lora:
@@ -252,6 +252,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
     with gr.Tab("4. Train Model (LoRA)"):
         with gr.Row():
             with gr.Column():
+                base_model = gr.Dropdown(choices=["kyutai/moshiko-pytorch-bf16", "nvidia/personaplex-7b-v1"], value="kyutai/moshiko-pytorch-bf16", label="Base Model", info="Select the base Moshi model to fine-tune.")
                 max_steps = gr.Slider(minimum=10, maximum=2000, value=50, step=10, label="Max Training Steps", info="For 100 examples, 50 steps is usually enough.")
                 batch_size = gr.Slider(minimum=4, maximum=64, value=16, step=4, label="Batch Size", info="Increase to 32 or 48 if you have an H200/A100. Keep at 8-16 for 24GB GPUs.")
                 lr = gr.Textbox(label="Learning Rate", value="2e-6", info="Default is 2e-6.")
@@ -267,7 +268,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
             with gr.Column():
                 train_output = gr.Textbox(label="Training Logs", lines=20)
                 
-        train_btn.click(run_training, inputs=[max_steps, batch_size, lr, mix_dailytalk, lora_rank, lora_scaling, duration_sec], outputs=train_output)
+        train_btn.click(run_training, inputs=[base_model, max_steps, batch_size, lr, mix_dailytalk, lora_rank, lora_scaling, duration_sec], outputs=train_output)
 
     with gr.Tab("5. Export Model"):
         gr.Markdown("**Final Step:** Locate the final LoRA adapter weights for deployment.")
