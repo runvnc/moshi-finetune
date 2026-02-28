@@ -7,6 +7,9 @@ from pathlib import Path
 import sys
 import subprocess
 
+# Force torchaudio to use soundfile backend to avoid torchcodec/ffmpeg issues
+torchaudio.set_audio_backend("soundfile")
+
 try:
     from dia2 import Dia2, GenerationConfig, SamplingConfig
 except Exception as e:
