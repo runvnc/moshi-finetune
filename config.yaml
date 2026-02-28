@@ -11,7 +11,7 @@ moshi_paths:
 full_finetuning: false
 lora:
   enable: true
-  rank: 128
+  rank: 32
   scaling: 2.
   ft_embed: false
 

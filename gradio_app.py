@@ -133,7 +133,7 @@ print(f'\nDone! Subset saved to {{output_dir}}')
     for log in run_command("uv pip install huggingface_hub tqdm && uv run download_dailytalk_temp.py"):
         yield log
 
-def run_training(max_steps, batch_size, learning_rate, mix_dailytalk):
+def run_training(max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
     yield "Starting LoRA Fine-Tuning...\n"
     
     train_data = "'/files/moshi-finetune/data/custom_dataset/dataset.jsonl'"
@@ -154,15 +154,15 @@ moshi_paths:
 full_finetuning: false
 lora:
   enable: true
-  rank: 128
-  scaling: 2.
+  rank: {lora_rank}
+  scaling: {lora_scaling}
   ft_embed: false
 
 first_codebook_weight_multiplier: 100.
 text_padding_weight: .5
 
 # optim
-duration_sec: 100
+duration_sec: {duration_sec}
 batch_size: {batch_size}
 max_steps: {max_steps}
 gradient_checkpointing: true
@@ -256,12 +256,18 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
                 batch_size = gr.Slider(minimum=4, maximum=64, value=16, step=4, label="Batch Size", info="Increase to 32 or 48 if you have an H200/A100. Keep at 8-16 for 24GB GPUs.")
                 lr = gr.Textbox(label="Learning Rate", value="2e-6", info="Default is 2e-6.")
                 mix_dailytalk = gr.Checkbox(label="Mix with DailyTalk Subset (70/30 split)", value=True, info="Requires downloading the subset in Step 3 first.")
+                
+                with gr.Accordion("Advanced LoRA & Memory Parameters", open=False):
+                    lora_rank = gr.Slider(minimum=8, maximum=256, value=32, step=8, label="LoRA Rank", info="Lower rank (e.g., 32) uses less memory and prevents overfitting on small datasets.")
+                    lora_scaling = gr.Slider(minimum=0.5, maximum=4.0, value=2.0, step=0.5, label="LoRA Scaling (Alpha)", info="Multiplier for the LoRA weights.")
+                    duration_sec = gr.Slider(minimum=10, maximum=100, value=100, step=10, label="Max Audio Duration (sec)", info="Reduce to 30-50 if you run out of VRAM on 24GB GPUs.")
+
                 train_btn = gr.Button("Start Fine-Tuning", variant="primary")
             
             with gr.Column():
                 train_output = gr.Textbox(label="Training Logs", lines=20)
                 
-        train_btn.click(run_training, inputs=[max_steps, batch_size, lr, mix_dailytalk], outputs=train_output)
+        train_btn.click(run_training, inputs=[max_steps, batch_size, lr, mix_dailytalk, lora_rank, lora_scaling, duration_sec], outputs=train_output)
 
     with gr.Tab("5. Export Model"):
         gr.Markdown("**Final Step:** Locate the final LoRA adapter weights for deployment.")
