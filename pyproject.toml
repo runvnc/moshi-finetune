@@ -28,6 +28,7 @@ dependencies = [
   "gradio",
   "google-generativeai",
   "pandas",
+  "elevenlabs",
   "torchcodec",
 ]
 

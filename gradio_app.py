@@ -140,14 +140,15 @@ def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
     except Exception as e:
         yield f"Failed to generate transcripts: {str(e)}", gr.update()
 
-def run_command(command):
+def run_command(command, env=None):
     try:
         process = subprocess.Popen(
             command, 
             shell=True, 
             stdout=subprocess.PIPE, 
             stderr=subprocess.STDOUT,
-            text=True
+            text=True,
+            env=env
         )
         
         output = ""
