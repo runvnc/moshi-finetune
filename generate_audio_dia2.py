@@ -56,11 +56,24 @@ def process_transcript(transcript, dia_model, config, output_audio_path, output_
     # 2. Generate Audio with Dia2
     # We use a temporary mono wav file
     temp_wav = "temp_mono.wav"
+    
+    # Look for prefix files in the dia2 directory to stabilize voices
+    parent_dir = os.path.abspath(os.path.join(os.getcwd(), ".."))
+    prefix1 = os.path.join(parent_dir, "dia2", "example_prefix1.wav")
+    prefix2 = os.path.join(parent_dir, "dia2", "example_prefix2.wav")
+    
+    kwargs = {}
+    if os.path.exists(prefix1) and os.path.exists(prefix2):
+        kwargs["prefix_speaker_1"] = prefix1
+        kwargs["prefix_speaker_2"] = prefix2
+        kwargs["include_prefix"] = False
+        
     result = dia_model.generate(
         dia_script, 
         config=config, 
         output_wav=temp_wav, 
-        verbose=False
+        verbose=False,
+        **kwargs
     )
     
     # 3. Align Timestamps and Create Moshi JSON
@@ -177,7 +190,7 @@ def main():
         print("Loading Dia2 Model...")
         dia_model = Dia2.from_repo("nari-labs/Dia2-2B", device="cuda", dtype="bfloat16")
         config = GenerationConfig(
-            cfg_scale=2.0,
+            cfg_scale=6.0,
             audio=SamplingConfig(temperature=0.8, top_k=50),
             use_cuda_graph=True,
         )
