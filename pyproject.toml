@@ -25,6 +25,9 @@ dependencies = [
   "submitit",
   "llvmlite>=0.44",
   "numba>=0.61",
+  "gradio",
+  "google-generativeai",
+  "pandas",
 ]
 
 [project.optional-dependencies]
