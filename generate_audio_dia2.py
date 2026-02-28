@@ -7,10 +7,10 @@ from pathlib import Path
 
 try:
     from dia2 import Dia2, GenerationConfig, SamplingConfig
-except ImportError as e:
-    print(f\"Warning: dia2 module not found. Exception: {e}\")
+except Exception as e:
+    print(f"Warning: dia2 module not found. Exception: {e}")
     import sys
-    print(f\"sys.path: {sys.path}\")
+    print(f"sys.path: {sys.path}")
     print("Warning: dia2 module not found. Please ensure it is installed via pyproject.toml.")
 
 def process_transcript(transcript, dia_model, config, output_audio_path, output_text_path):
