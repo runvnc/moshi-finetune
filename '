@@ -107,5 +107,3 @@ example/debug_configs/
 
 .gradio
 data/
-ui_config.json
-
