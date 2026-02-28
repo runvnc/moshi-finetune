@@ -8,7 +8,7 @@ import soundfile as sf
 import io
 from elevenlabs.client import ElevenLabs
 
-def process_transcript(transcript, client, output_audio_path, output_text_path, voice_a, voice_b):
+def process_transcript(transcript, client, output_audio_path, output_text_path, voice_a, voice_b, system_prompt):
     inputs = []
     for turn in transcript:
         speaker = turn["speaker"]
@@ -82,8 +82,12 @@ def process_transcript(transcript, client, output_audio_path, output_text_path, 
         ])
         
     # Save Moshi JSON
+    output_data = {"alignments": moshi_timestamps}
+    if system_prompt:
+        output_data["text_conditions"] = {"description": system_prompt}
+        
     with open(output_text_path, "w") as f:
-        json.dump({"alignments": moshi_timestamps}, f, indent=2)
+        json.dump(output_data, f, indent=2)
         
     # Create Stereo WAV (Left=A, Right=B)
     left_channel = torch.zeros_like(waveform)
@@ -126,6 +130,14 @@ def main():
         print(f"Error: {input_file} not found. Run generate_transcripts.py first.")
         return
         
+    system_prompt = ""
+    if os.path.exists("ui_config.json"):
+        try:
+            with open("ui_config.json", "r") as f:
+                system_prompt = json.load(f).get("system_prompt", "")
+        except:
+            pass
+
     with open(input_file, "r") as f:
         transcripts = json.load(f)
         
@@ -166,7 +178,7 @@ def main():
                 duration = info.frames / info.samplerate
             else:
                 print(f"Processing {transcript_id}...")
-                duration = process_transcript(transcript, client, audio_path, text_path, voice_a, voice_b)
+                duration = process_transcript(transcript, client, audio_path, text_path, voice_a, voice_b, system_prompt)
             
             abs_audio_path = os.path.abspath(audio_path)
             f_jsonl.write(json.dumps({"path": abs_audio_path, "duration": duration}) + "\n")

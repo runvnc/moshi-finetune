@@ -314,6 +314,12 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
                     value=config.get("scenario", ""),
                     placeholder="e.g., Agent Alexis Kim calling a business to verify pre-employment background checks..."
                 )
+                system_prompt = gr.Textbox(
+                    label="System Prompt (Persona)", 
+                    lines=3, 
+                    value=config.get("system_prompt", "<system> You are a helpful assistant. <system>"),
+                    info="This is the exact prompt the model will be conditioned on during training. Must be wrapped in <system> tags."
+                )
                 num_samples = gr.Slider(minimum=1, maximum=500, value=config.get("num_samples", 50), step=1, label="Number of Conversations")
                 num_turns = gr.Slider(minimum=2, maximum=20, value=config.get("num_turns", 6), step=1, label="Target Turns per Conversation")
                 gen_text_btn = gr.Button("Generate Transcripts", variant="primary")
@@ -328,6 +334,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
         api_key.change(lambda x: save_config("api_key", x), inputs=[api_key])
         model_name.change(lambda x: save_config("model_name", x), inputs=[model_name])
         scenario.change(lambda x: save_config("scenario", x), inputs=[scenario])
+        system_prompt.change(lambda x: save_config("system_prompt", x), inputs=[system_prompt])
         num_samples.change(lambda x: save_config("num_samples", x), inputs=[num_samples])
         num_turns.change(lambda x: save_config("num_turns", x), inputs=[num_turns])
 

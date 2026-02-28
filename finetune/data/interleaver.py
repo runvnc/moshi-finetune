@@ -286,4 +286,7 @@ class InterleavedTokenizer:
             )
 
             codes = torch.cat([text_tokens, audio_tokens], dim=1)
-            return Sample(codes, data.get("text_conditions", None))
+            text_conditions = data.get("text_conditions", None)
+            if text_conditions is not None:
+                text_conditions = ConditionAttributes(text=text_conditions)
+            return Sample(codes, text_conditions)
