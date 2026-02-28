@@ -4,14 +4,11 @@ import torch
 import torchaudio
 import numpy as np
 from pathlib import Path
-import sys
 
-# Assuming dia2 is cloned in the same parent directory or installed
-sys.path.append('/files/dia2') 
 try:
     from dia2 import Dia2, GenerationConfig, SamplingConfig
 except ImportError:
-    print("Warning: dia2 module not found. This script is meant to be run on the RunPod instance where Dia2 is installed.")
+    print("Warning: dia2 module not found. Please ensure it is installed via pyproject.toml.")
 
 def process_transcript(transcript, dia_model, config, output_audio_path, output_text_path):
     # 1. Prepare Dia2 Script and Word-Speaker Mapping

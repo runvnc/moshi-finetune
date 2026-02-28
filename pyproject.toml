@@ -28,6 +28,7 @@ dependencies = [
   "gradio",
   "google-generativeai",
   "pandas",
+  "dia2 @ git+https://github.com/nari-labs/dia2.git",
 ]
 
 [project.optional-dependencies]
