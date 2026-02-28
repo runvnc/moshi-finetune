@@ -4,13 +4,31 @@ import torch
 import torchaudio
 import numpy as np
 from pathlib import Path
+import sys
+import subprocess
 
 try:
     from dia2 import Dia2, GenerationConfig, SamplingConfig
 except Exception as e:
-    print(f"Warning: dia2 module not found. Exception: {e}")
-    import sys
-    print(f"sys.path: {sys.path}")
+    print(f"Warning: dia2 module not found or broken. Exception: {e}")
+    print("Attempting to automatically clone and install dia2 in editable mode...")
+    
+    parent_dir = os.path.abspath(os.path.join(os.getcwd(), ".."))
+    dia2_dir = os.path.join(parent_dir, "dia2")
+    
+    if not os.path.exists(dia2_dir):
+        print(f"Cloning dia2 into {dia2_dir}...")
+        subprocess.run(["git", "clone", "https://github.com/nari-labs/dia2.git", dia2_dir], check=True)
+    else:
+        print(f"Found existing dia2 directory at {dia2_dir}.")
+        
+    print("Installing dia2 in editable mode...")
+    # Use the same python executable to run uv pip install
+    subprocess.run(["uv", "pip", "install", "-e", dia2_dir], check=True)
+    
+    print("\n\n✅ dia2 has been successfully installed in editable mode!")
+    print("Please click 'Generate Audio & Timestamps' again to restart the process.")
+    sys.exit(0)
     print("Warning: dia2 module not found. Please ensure it is installed via pyproject.toml.")
 
 def process_transcript(transcript, dia_model, config, output_audio_path, output_text_path):
