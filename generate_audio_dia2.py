@@ -142,6 +142,15 @@ def main():
         
     print(f"Loaded {len(transcripts)} transcripts.")
     
+    # Extract valid UUIDs to clean up orphaned audio files later
+    valid_ids = set()
+    for t in transcripts:
+        if isinstance(t, dict) and "id" in t:
+            valid_ids.add(t["id"])
+        else:
+            # Fallback for old format
+            pass
+    
     try:
         print("Loading Dia2 Model...")
         dia_model = Dia2.from_repo("nari-labs/Dia2-2B", device="cuda", dtype="bfloat16")
@@ -155,19 +164,41 @@ def main():
         return
         
     with open(dataset_jsonl, "w") as f_jsonl:
-        for i, transcript in enumerate(transcripts):
-            # Format: 001.wav, 001.json
-            file_id = f"{i+1:03d}"
-            audio_path = os.path.join(audio_dir, f"{file_id}.wav")
-            text_path = os.path.join(audio_dir, f"{file_id}.json")
+        for i, transcript_obj in enumerate(transcripts):
+            if isinstance(transcript_obj, list):
+                transcript_id = f"legacy_{i+1:03d}"
+                transcript = transcript_obj
+                valid_ids.add(transcript_id)
+            else:
+                transcript_id = transcript_obj["id"]
+                transcript = transcript_obj["dialogue"]
+                
+            audio_path = os.path.join(audio_dir, f"{transcript_id}.wav")
+            text_path = os.path.join(audio_dir, f"{transcript_id}.json")
             
-            print(f"Processing {file_id}/{len(transcripts)}...")
-            duration = process_transcript(transcript, dia_model, config, audio_path, text_path)
+            if os.path.exists(audio_path) and os.path.exists(text_path):
+                print(f"Skipping {transcript_id} (Audio already exists)...")
+                # Get duration from existing file
+                info = torchaudio.info(audio_path)
+                duration = info.num_frames / info.sample_rate
+            else:
+                print(f"Processing {transcript_id}...")
+                duration = process_transcript(transcript, dia_model, config, audio_path, text_path)
             
             # Write to jsonl
             abs_audio_path = os.path.abspath(audio_path)
             f_jsonl.write(json.dumps({"path": abs_audio_path, "duration": duration}) + "\n")
         
+    # Cleanup orphaned files (e.g., if a user deleted a row in the UI)
+    print("\nCleaning up orphaned audio files...")
+    for filename in os.listdir(audio_dir):
+        if filename.endswith(".wav") or filename.endswith(".json"):
+            file_id = os.path.splitext(filename)[0]
+            if file_id not in valid_ids:
+                file_path = os.path.join(audio_dir, filename)
+                os.remove(file_path)
+                print(f"Deleted orphaned file: {filename}")
+
     print("\nAll audio and timestamps generated successfully!")
     print(f"Dataset ready at {dataset_jsonl}")
 

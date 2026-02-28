@@ -5,6 +5,7 @@ import subprocess
 import glob
 import google.generativeai as genai
 import pandas as pd
+import uuid
 
 CONFIG_FILE = "ui_config.json"
 
@@ -33,10 +34,17 @@ def load_transcripts_df():
             data = json.load(f)
         
         rows = []
-        for i, convo in enumerate(data):
-            turns = len(convo)
-            preview = convo[0].get("text", "")[:50] + "..." if turns > 0 else "Empty"
-            rows.append([i, turns, preview, json.dumps(convo)])
+        for item in data:
+            if isinstance(item, list):
+                item_id = str(uuid.uuid4())
+                dialogue = item
+            else:
+                item_id = item.get("id", str(uuid.uuid4()))
+                dialogue = item.get("dialogue", [])
+                
+            turns = len(dialogue)
+            preview = dialogue[0].get("text", "")[:50] + "..." if turns > 0 else "Empty"
+            rows.append([item_id, turns, preview, json.dumps(dialogue)])
         return pd.DataFrame(rows, columns=["ID", "Turns", "Preview", "Full JSON"])
     except Exception as e:
         print(f"Error loading transcripts: {e}")
@@ -44,7 +52,7 @@ def load_transcripts_df():
 
 def save_transcripts_df(df):
     file_path = "data/custom_dataset/raw_transcripts.json"
-    data = [json.loads(row) for row in df["Full JSON"].tolist()]
+    data = [{"id": row_id, "dialogue": json.loads(dialogue_str)} for row_id, dialogue_str in zip(df["ID"], df["Full JSON"])]
     with open(file_path, "w") as f:
         json.dump(data, f, indent=2)
 
@@ -107,6 +115,9 @@ def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
             
         new_data = json.loads(clean_text)
         
+        # Wrap new data in UUID objects
+        new_data_with_ids = [{"id": str(uuid.uuid4()), "dialogue": convo} for convo in new_data]
+        
         os.makedirs("data/custom_dataset", exist_ok=True)
         output_file = "data/custom_dataset/raw_transcripts.json"
         
@@ -116,12 +127,12 @@ def generate_transcripts(api_key, model_name, scenario, num_samples, num_turns):
             with open(output_file, "r") as f:
                 existing_data = json.load(f)
                 
-        combined_data = existing_data + new_data
+        combined_data = existing_data + new_data_with_ids
         
         with open(output_file, "w") as f:
             json.dump(combined_data, f, indent=2)
             
-        yield full_text + f"\n\n\n✅ Successfully generated {len(new_data)} new transcripts! Total dataset size: {len(combined_data)}.", load_transcripts_df()
+        yield full_text + f"\n\n\n✅ Successfully generated {len(new_data_with_ids)} new transcripts! Total dataset size: {len(combined_data)}.", load_transcripts_df()
         
     except Exception as e:
         yield f"Failed to generate transcripts: {str(e)}", gr.update()
