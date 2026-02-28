@@ -190,8 +190,8 @@ def main():
         print("Loading Dia2 Model...")
         dia_model = Dia2.from_repo("nari-labs/Dia2-2B", device="cuda", dtype="bfloat16")
         config = GenerationConfig(
-            cfg_scale=6.0,
-            audio=SamplingConfig(temperature=0.8, top_k=50),
+            cfg_scale=3.0,
+            audio=SamplingConfig(temperature=0.7, top_k=50),
             use_cuda_graph=True,
         )
     except NameError:
