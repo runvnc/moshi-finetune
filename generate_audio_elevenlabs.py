@@ -2,12 +2,56 @@ import os
 import json
 import sys
 import base64
+import hashlib
 import torch
 import numpy as np
 import soundfile as sf
 import io
 from elevenlabs.client import ElevenLabs
 import random
+
+VOICE_CACHE_FILE = "data/custom_dataset/voice_cache.json"
+
+def load_voice_cache():
+    if os.path.exists(VOICE_CACHE_FILE):
+        try:
+            with open(VOICE_CACHE_FILE, "r") as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
+
+def save_voice_cache(cache):
+    os.makedirs(os.path.dirname(VOICE_CACHE_FILE), exist_ok=True)
+    with open(VOICE_CACHE_FILE, "w") as f:
+        json.dump(cache, f, indent=2)
+
+def design_voice(client, voice_description):
+    """Create or retrieve a cached ElevenLabs voice from a text description."""
+    cache = load_voice_cache()
+    key = hashlib.md5(voice_description.encode()).hexdigest()
+    if key in cache:
+        print(f"  Using cached voice for: {voice_description[:50]}...")
+        return cache[key]
+
+    print(f"  Designing new voice: {voice_description[:60]}...")
+    sample_text = "Hello, thanks for calling. How can I help you today?"
+    previews = client.text_to_voice.create_previews(
+        voice_description=voice_description,
+        text=sample_text,
+    )
+    preview = previews.previews[0]
+    voice_name = f"AutoVoice_{key[:8]}"
+    saved = client.text_to_voice.create_voice_from_preview(
+        voice_preview_id=preview.generated_voice_id,
+        voice_name=voice_name,
+        voice_description=voice_description,
+    )
+    voice_id = saved.voice_id
+    cache[key] = voice_id
+    save_voice_cache(cache)
+    print(f"  Created voice '{voice_name}' -> {voice_id}")
+    return voice_id
 
 def process_transcript(transcript, client, output_audio_path, output_text_path, voice_a, voice_b, system_prompt):
     inputs = []
@@ -17,13 +61,20 @@ def process_transcript(transcript, client, output_audio_path, output_text_path, 
         voice_id = voice_a if speaker == "A" else voice_b
         inputs.append({
             "text": text,
-            "voice_id": voice_id
+            "voice_id": voice_id,
+            "voice_settings": {
+                "stability": 0.35,
+                "similarity_boost": 0.75,
+                "style": 0.40,
+                "use_speaker_boost": True
+            }
         })
         
     print(f"Generating audio for {len(inputs)} turns via ElevenLabs...")
     
     response = client.text_to_dialogue.convert_with_timestamps(
-        inputs=inputs
+        inputs=inputs,
+        model_id="eleven_v3"
     )
     
     # Decode audio
@@ -176,8 +227,8 @@ def main():
                 # Speaker A is User, Speaker B is Agent
                 user_voice_prompt = transcript_obj.get("user_voice_prompt", "A casual male voice, slightly deep.")
                 agent_voice_prompt = transcript_obj.get("agent_voice_prompt", "A professional female customer service agent with a clear American accent.")
-                voice_a = design_voice(user_voice_prompt)
-                voice_b = design_voice(agent_voice_prompt)
+                voice_a = design_voice(client, user_voice_prompt)
+                voice_b = design_voice(client, agent_voice_prompt)
                 system_prompt = transcript_obj.get("system_prompt", "") if isinstance(transcript_obj, dict) else ""
                 duration = process_transcript(transcript, client, audio_path, text_path, voice_a, voice_b, system_prompt)
             
