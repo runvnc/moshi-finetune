@@ -178,7 +178,8 @@ def run_command(command, env=None):
             stdout=subprocess.PIPE, 
             stderr=subprocess.STDOUT,
             text=True,
-            env=env
+            env=env,
+            bufsize=1
         )
         
         output = ""
@@ -392,7 +393,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
         def generate_audio_wrapper(engine, el_api_key):
             yield f"Starting Audio Generation using {engine}...\n"
             if engine == "Dia2 (Local)":
-                for log in run_command(f"{sys.executable} generate_audio_dia2.py"):
+                for log in run_command(f"{sys.executable} -u generate_audio_dia2.py"):
                     yield log
             else:
                 if not el_api_key:
@@ -400,7 +401,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
                     return
                 env = os.environ.copy()
                 env["ELEVENLABS_API_KEY"] = el_api_key
-                for log in run_command(f"{sys.executable} generate_audio_elevenlabs.py", env=env):
+                for log in run_command(f"{sys.executable} -u generate_audio_elevenlabs.py", env=env):
                     yield log
                     
         gen_audio_btn.click(generate_audio_wrapper, inputs=[audio_engine, elevenlabs_api_key], outputs=audio_output)
