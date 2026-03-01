@@ -344,12 +344,38 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
         gen_text_btn.click(generate_transcripts, inputs=[api_key, model_name, system_prompt, scenario, num_samples, num_turns], outputs=[text_output, dataset_df])
         dataset_df.change(save_transcripts_df, inputs=[dataset_df])
 
-    with gr.Tab("2. Generate Audio (Dia2)"):
-        gr.Markdown("This step uses Dia2 to generate the audio and timestamps based on the transcripts generated in Step 1.")
+    with gr.Tab("2. Generate Audio"):
+        gr.Markdown("Generate audio and timestamps based on the transcripts generated in Step 1.")
+        
+        with gr.Row():
+            audio_engine = gr.Radio(choices=["Dia2 (Local)", "ElevenLabs (API)"], value=config.get("audio_engine", "Dia2 (Local)"), label="Audio Engine")
+            elevenlabs_api_key = gr.Textbox(label="ElevenLabs API Key", type="password", value=config.get("elevenlabs_api_key", ""), visible=config.get("audio_engine", "Dia2 (Local)") == "ElevenLabs (API)")
+            
         gen_audio_btn = gr.Button("Generate Audio & Timestamps", variant="primary")
         audio_output = gr.Textbox(label="Terminal Output", lines=15)
         
-        gen_audio_btn.click(generate_audio, outputs=audio_output)
+        def update_audio_engine_ui(engine):
+            save_config("audio_engine", engine)
+            return gr.update(visible=engine == "ElevenLabs (API)")
+            
+        audio_engine.change(update_audio_engine_ui, inputs=[audio_engine], outputs=[elevenlabs_api_key])
+        elevenlabs_api_key.change(lambda x: save_config("elevenlabs_api_key", x), inputs=[elevenlabs_api_key])
+        
+        def generate_audio_wrapper(engine, el_api_key):
+            yield f"Starting Audio Generation using {engine}...\n"
+            if engine == "Dia2 (Local)":
+                for log in run_command(f"{sys.executable} generate_audio_dia2.py"):
+                    yield log
+            else:
+                if not el_api_key:
+                    yield "Error: ElevenLabs API Key is required.\n"
+                    return
+                env = os.environ.copy()
+                env["ELEVENLABS_API_KEY"] = el_api_key
+                for log in run_command(f"{sys.executable} generate_audio_elevenlabs.py", env=env):
+                    yield log
+                    
+        gen_audio_btn.click(generate_audio_wrapper, inputs=[audio_engine, elevenlabs_api_key], outputs=audio_output)
 
     with gr.Tab("3. Download DailyTalk (Optional)"):
         gr.Markdown("Download a subset of the DailyTalk dataset to mix with your synthetic data. This prevents catastrophic forgetting and keeps the voice sounding natural.")
