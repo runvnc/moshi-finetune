@@ -7,6 +7,7 @@ import numpy as np
 import soundfile as sf
 import io
 from elevenlabs.client import ElevenLabs
+import random
 
 def process_transcript(transcript, client, output_audio_path, output_text_path, voice_a, voice_b, system_prompt):
     inputs = []
@@ -178,6 +179,11 @@ def main():
                 duration = info.frames / info.samplerate
             else:
                 print(f"Processing {transcript_id}...")
+                print(f\"Processing {transcript_id}...\")
+                # Pick random voices for each conversation based on preferences
+                # Speaker A is User, Speaker B is Agent
+                voice_a = get_random_voice(user_gender)
+                voice_b = get_random_voice(agent_gender)
                 duration = process_transcript(transcript, client, audio_path, text_path, voice_a, voice_b, system_prompt)
             
             abs_audio_path = os.path.abspath(audio_path)

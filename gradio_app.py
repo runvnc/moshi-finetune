@@ -83,6 +83,10 @@ def generate_transcripts(api_key, model_name, system_prompt, scenario, num_sampl
     - Speaker A is the User.
     - Speaker B is the AI Agent.
     - Follow the scenario description closely for who speaks first and the tone of the conversation.
+    - IMPORTANT: You MUST inject ElevenLabs v3 emotion/audio tags into the text where appropriate to make it sound natural.
+      Examples of valid tags: [laughs], [sighs], [angry], [cheerful], [whispering], [shouting], [sad], [excited], [nervous], [clears throat], [hmm], [gasp].
+      Use these tags inline, for example: "[cheerful] Hello there! [laughs] How can I help you?"
+      Do not overdo it, but use them to convey the correct emotion.
     - Each conversation should be approximately {num_turns} turns long, including a natural back-and-forth exchange.
     - Output strictly as a JSON array of conversations. Each conversation is an array of turn objects.
     
@@ -352,15 +356,22 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
             audio_engine = gr.Radio(choices=["Dia2 (Local)", "ElevenLabs (API)"], value=config.get("audio_engine", "Dia2 (Local)"), label="Audio Engine")
             elevenlabs_api_key = gr.Textbox(label="ElevenLabs API Key", type="password", value=config.get("elevenlabs_api_key", ""), visible=config.get("audio_engine", "Dia2 (Local)") == "ElevenLabs (API)")
             
+        with gr.Row(visible=config.get("audio_engine", "Dia2 (Local)") == "ElevenLabs (API)") as el_options:
+            agent_gender = gr.Dropdown(choices=["Random", "Female", "Male"], value=config.get("agent_gender", "Random"), label="Agent Voice Gender")
+            user_gender = gr.Dropdown(choices=["Random", "Female", "Male"], value=config.get("user_gender", "Random"), label="User Voice Gender")
+            
         gen_audio_btn = gr.Button("Generate Audio & Timestamps", variant="primary")
         audio_output = gr.Textbox(label="Terminal Output", lines=15)
         
         def update_audio_engine_ui(engine):
             save_config("audio_engine", engine)
-            return gr.update(visible=engine == "ElevenLabs (API)")
+            is_el = engine == "ElevenLabs (API)"
+            return gr.update(visible=is_el), gr.update(visible=is_el)
             
-        audio_engine.change(update_audio_engine_ui, inputs=[audio_engine], outputs=[elevenlabs_api_key])
+        audio_engine.change(update_audio_engine_ui, inputs=[audio_engine], outputs=[elevenlabs_api_key, el_options])
         elevenlabs_api_key.blur(lambda x: save_config("elevenlabs_api_key", x), inputs=[elevenlabs_api_key])
+        agent_gender.change(lambda x: save_config("agent_gender", x), inputs=[agent_gender])
+        user_gender.change(lambda x: save_config("user_gender", x), inputs=[user_gender])
         
         def generate_audio_wrapper(engine, el_api_key):
             yield f"Starting Audio Generation using {engine}...\n"
