@@ -39,6 +39,10 @@ def design_voice(client, voice_description):
     previews = client.text_to_voice.create_previews(
         voice_description=voice_description,
         auto_generate_text=True,
+        model_id="eleven_ttv_v3",
+        should_enhance=True,
+        quality=1.0,
+        guidance_scale=3,
     )
     preview = previews.previews[0]
     voice_name = f"AutoVoice_{key[:8]}"
@@ -137,29 +141,15 @@ def process_transcript(transcript, client, output_audio_path, output_text_path, 
     left_channel = torch.zeros_like(waveform)
     right_channel = torch.zeros_like(waveform)
     
-    # Group words into speaker turns and copy turn-level segments
-    # This avoids word-by-word channel switching artifacts
-    if moshi_timestamps:
-        current_speaker = "A" if moshi_timestamps[0][2] == "SPEAKER_MAIN" else "B"
-        turn_start = moshi_timestamps[0][1][0]
-        turn_end = moshi_timestamps[0][1][1]
-
-        def flush_turn(spk, t_start, t_end):
-            s = int(t_start * sample_rate)
-            e = min(int(t_end * sample_rate), waveform.shape[1])
-            if spk == "A":
-                left_channel[0, s:e] = waveform[0, s:e]
-            else:
-                right_channel[0, s:e] = waveform[0, s:e]
-
-        for item in moshi_timestamps[1:]:
-            spk = "A" if item[2] == "SPEAKER_MAIN" else "B"
-            if spk != current_speaker:
-                flush_turn(current_speaker, turn_start, turn_end)
-                current_speaker = spk
-                turn_start = item[1][0]
-            turn_end = item[1][1]
-        flush_turn(current_speaker, turn_start, turn_end)
+    # Use voice_segments for exact speaker turn boundaries
+    for seg in response.voice_segments:
+        spk = "A" if seg.voice_id == voice_a else "B"
+        s = int(seg.start_time_seconds * sample_rate)
+        e = min(int(seg.end_time_seconds * sample_rate), waveform.shape[1])
+        if spk == "A":
+            left_channel[0, s:e] = waveform[0, s:e]
+        else:
+            right_channel[0, s:e] = waveform[0, s:e]
             
     stereo_waveform = torch.cat([left_channel, right_channel], dim=0)
     sf.write(output_audio_path, stereo_waveform.T.numpy(), sample_rate)
