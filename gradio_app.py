@@ -104,10 +104,10 @@ def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_tu
     - Speaker A is the User.
     - Speaker B is the AI Agent.
     - Follow the scenario description closely for who speaks first and the tone of the conversation.
-    - IMPORTANT: You MUST inject ElevenLabs v3 emotion/audio tags into the text where appropriate to make it sound natural.
-      Examples of valid tags: [laughs], [sighs], [angry], [cheerful], [whispering], [shouting], [sad], [excited], [nervous], [clears throat], [hmm], [gasp].
-      Use these tags inline, for example: "[cheerful] Hello there! [laughs] How can I help you?"
-      Do not overdo it, but use them to convey the correct emotion.
+    - IMPORTANT: You MUST inject ElevenLabs v3 emotion/audio tags into BOTH Speaker A and Speaker B lines to make them sound natural and human.
+      Examples of valid tags: [laughs], [sighs], [angry], [cheerful], [whispering], [shouting], [sad], [excited], [nervous], [clears throat], [hmm], [gasp], [surprised], [confused], [hesitant].
+      Use these tags inline for BOTH speakers, for example: "[hmm] Yeah, I think so..." or "[sighs] Let me check on that."
+      Both speakers should have varied emotional delivery. Do not overdo it, but ensure both speakers sound expressive and human, not robotic.
     - Each conversation should be approximately {num_turns} turns long, including a natural back-and-forth exchange.
     - Output strictly as a JSON array of conversation objects.
     - Each conversation object MUST contain:
