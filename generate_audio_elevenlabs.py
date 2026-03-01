@@ -35,7 +35,7 @@ def design_voice(client, voice_description):
         return cache[key]
 
     print(f"  Designing new voice: {voice_description[:60]}...")
-    sample_text = "Hello, thanks for calling. How can I help you today?"
+    sample_text = "Hello, thanks for calling. How can I help you today? I'd be happy to assist you with whatever you need. Could you please tell me a bit more about what you're looking for?"
     previews = client.text_to_voice.create_previews(
         voice_description=voice_description,
         text=sample_text,
