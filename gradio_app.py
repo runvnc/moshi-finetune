@@ -69,11 +69,12 @@ def save_transcripts_df(df):
         raise gr.Error(f"Failed to save dataset: Invalid JSON format. {str(e)}")
 
 def generate_transcripts(api_key, model_name, system_prompt, scenario, num_samples, num_turns):
+def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_turns):
     if not api_key:
         yield "Error: Please provide a Gemini API Key.", gr.update()
         return
-    if not scenario:
-        yield "Error: Please provide a scenario description.", gr.update()
+    if not system_prompt:
+        yield "Error: Please provide a system/conditioning prompt.", gr.update()
         return
         
     genai.configure(api_key=api_key)
@@ -94,9 +95,6 @@ def generate_transcripts(api_key, model_name, system_prompt, scenario, num_sampl
     MUST include a "system_prompt" field. The dialogue content must be consistent with the
     system_prompt used for that specific conversation (e.g. the agent introduces themselves with the
     correct name from their system_prompt).
-    
-    Scenario:
-    {scenario}
     
     Format Requirements:
     - Speaker A is the User.
@@ -352,15 +350,9 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
             with gr.Column():
                 api_key = gr.Textbox(label="Gemini API Key", type="password", value=config.get("api_key", ""))
                 model_name = gr.Dropdown(choices=["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-2.5-flash", "gemini-1.5-pro"], value=config.get("model_name", "gemini-3-flash-preview"), label="Gemini Model")
-                scenario = gr.Textbox(
-                    label="Dialogue Scenario Description", 
-                    lines=5, 
-                    value=config.get("scenario", ""),
-                    placeholder="e.g., Agent Alexis Kim calling a business to verify pre-employment background checks..."
-                )
                 system_prompt = gr.Textbox(
                     label="System Prompt / Conditioning Prompt", 
-                    lines=3, 
+                    lines=8, 
                     value=config.get("system_prompt", "<system> You are a helpful assistant. <system>"),
                     info="The conditioning prompt the model trains on. Wrap in <system> tags. May contain scenario-specific fields (agent name, company, etc.) — Gemini will generate a unique variation per conversation, varying those fields naturally. If no variable fields are present, it will be used as-is or with minor phrasing variation."
                 )
@@ -377,12 +369,11 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
 
         api_key.change(lambda x: save_config("api_key", x), inputs=[api_key])
         model_name.change(lambda x: save_config("model_name", x), inputs=[model_name])
-        scenario.change(lambda x: save_config("scenario", x), inputs=[scenario])
         system_prompt.change(lambda x: save_config("system_prompt", x), inputs=[system_prompt])
         num_samples.change(lambda x: save_config("num_samples", x), inputs=[num_samples])
         num_turns.change(lambda x: save_config("num_turns", x), inputs=[num_turns])
 
-        gen_text_btn.click(generate_transcripts, inputs=[api_key, model_name, system_prompt, scenario, num_samples, num_turns], outputs=[text_output, dataset_df])
+        gen_text_btn.click(generate_transcripts, inputs=[api_key, model_name, system_prompt, num_samples, num_turns], outputs=[text_output, dataset_df])
         dataset_df.change(save_transcripts_df, inputs=[dataset_df])
 
     with gr.Tab("2. Generate Audio"):
