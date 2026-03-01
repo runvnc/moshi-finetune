@@ -68,7 +68,6 @@ def save_transcripts_df(df):
     except Exception as e:
         raise gr.Error(f"Failed to save dataset: Invalid JSON format. {str(e)}")
 
-def generate_transcripts(api_key, model_name, system_prompt, scenario, num_samples, num_turns):
 def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_turns):
     if not api_key:
         yield "Error: Please provide a Gemini API Key.", gr.update()
