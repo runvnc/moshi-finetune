@@ -146,7 +146,7 @@ def process_transcript(transcript, client, output_audio_path, output_text_path, 
 
         def flush_turn(spk, t_start, t_end):
             s = int(t_start * sample_rate)
-            e = min(int((t_end + 0.05) * sample_rate), waveform.shape[1])
+            e = min(int(t_end * sample_rate), waveform.shape[1])
             if spk == "A":
                 left_channel[0, s:e] = waveform[0, s:e]
             else:
