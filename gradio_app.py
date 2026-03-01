@@ -81,8 +81,19 @@ def generate_transcripts(api_key, model_name, system_prompt, scenario, num_sampl
     prompt = f"""
     You are an expert dialogue writer. Generate {num_samples} unique, short dialogue transcripts.
     
-    The AI Agent (Speaker B) has the following System Prompt / Persona:
+    The AI Agent (Speaker B) will be conditioned on a system/persona prompt during training.
+    Here is the base system prompt to use as a reference:
+    ---
     {system_prompt}
+    ---
+    For each conversation, generate a unique "system_prompt" field that is a variation of the above.
+    If the base prompt contains scenario-specific information such as an agent name, company name, or
+    other variable fields, vary those naturally across conversations (e.g. different agent names,
+    different company names). If the base prompt is generic or contains no variable fields, you may
+    use it as-is or with only minor natural phrasing variations. Either way, every conversation object
+    MUST include a "system_prompt" field. The dialogue content must be consistent with the
+    system_prompt used for that specific conversation (e.g. the agent introduces themselves with the
+    correct name from their system_prompt).
     
     Scenario:
     {scenario}
@@ -98,13 +109,15 @@ def generate_transcripts(api_key, model_name, system_prompt, scenario, num_sampl
     - Each conversation should be approximately {num_turns} turns long, including a natural back-and-forth exchange.
     - Output strictly as a JSON array of conversation objects.
     - Each conversation object MUST contain:
-      1. "agent_voice_prompt": A short description of the AI Agent's voice (e.g., "A professional female customer service agent with a clear American accent.")
-      2. "user_voice_prompt": A short description of the User's voice (e.g., "A casual male voice, slightly deep.")
-      3. "dialogue": An array of turn objects.
+      1. "system_prompt": A variation of the base system prompt as described above, wrapped in <system> tags like: "<system> ... <system>"
+      2. "agent_voice_prompt": A short description of the AI Agent's voice (e.g., "A professional female customer service agent with a clear American accent.")
+      3. "user_voice_prompt": A short description of the User's voice (e.g., "A casual male voice, slightly deep.")
+      4. "dialogue": An array of turn objects.
     
     Example Output:
     [
       {{
+        "system_prompt": "<system> You are on an outgoing phone call. Your name: Jordan. Company name: TechVerify Inc. <system>",
         "agent_voice_prompt": "A cheerful young female voice.",
         "user_voice_prompt": "An elderly male voice with a British accent.",
         "dialogue": [
@@ -346,10 +359,10 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
                     placeholder="e.g., Agent Alexis Kim calling a business to verify pre-employment background checks..."
                 )
                 system_prompt = gr.Textbox(
-                    label="System Prompt (Persona)", 
+                    label="System Prompt / Conditioning Prompt", 
                     lines=3, 
                     value=config.get("system_prompt", "<system> You are a helpful assistant. <system>"),
-                    info="This is the exact prompt the model will be conditioned on during training. Must be wrapped in <system> tags."
+                    info="The conditioning prompt the model trains on. Wrap in <system> tags. May contain scenario-specific fields (agent name, company, etc.) — Gemini will generate a unique variation per conversation, varying those fields naturally. If no variable fields are present, it will be used as-is or with minor phrasing variation."
                 )
                 num_samples = gr.Slider(minimum=1, maximum=500, value=config.get("num_samples", 50), step=1, label="Number of Conversations")
                 num_turns = gr.Slider(minimum=2, maximum=20, value=config.get("num_turns", 6), step=1, label="Target Turns per Conversation")

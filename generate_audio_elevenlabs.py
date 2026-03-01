@@ -131,14 +131,6 @@ def main():
         print(f"Error: {input_file} not found. Run generate_transcripts.py first.")
         return
         
-    system_prompt = ""
-    if os.path.exists("ui_config.json"):
-        try:
-            with open("ui_config.json", "r") as f:
-                system_prompt = json.load(f).get("system_prompt", "")
-        except:
-            pass
-
     with open(input_file, "r") as f:
         transcripts = json.load(f)
         
@@ -186,6 +178,7 @@ def main():
                 agent_voice_prompt = transcript_obj.get("agent_voice_prompt", "A professional female customer service agent with a clear American accent.")
                 voice_a = design_voice(user_voice_prompt)
                 voice_b = design_voice(agent_voice_prompt)
+                system_prompt = transcript_obj.get("system_prompt", "") if isinstance(transcript_obj, dict) else ""
                 duration = process_transcript(transcript, client, audio_path, text_path, voice_a, voice_b, system_prompt)
             
             abs_audio_path = os.path.abspath(audio_path)

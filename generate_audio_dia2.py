@@ -176,14 +176,6 @@ def main():
         print(f"Error: {input_file} not found. Run generate_transcripts.py first.")
         return
         
-    system_prompt = ""
-    if os.path.exists("ui_config.json"):
-        try:
-            with open("ui_config.json", "r") as f:
-                system_prompt = json.load(f).get("system_prompt", "")
-        except:
-            pass
-
     with open(input_file, "r") as f:
         transcripts = json.load(f)
         
@@ -230,6 +222,7 @@ def main():
                 duration = info.frames / info.samplerate
             else:
                 print(f"Processing {transcript_id}...")
+                system_prompt = transcript_obj.get("system_prompt", "") if isinstance(transcript_obj, dict) else ""
                 duration = process_transcript(transcript, dia_model, config, audio_path, text_path, system_prompt)
             
             # Write to jsonl
