@@ -36,7 +36,7 @@ def design_voice(client, voice_description):
         return cache[key]
 
     print(f"  Designing new voice: {voice_description[:60]}...")
-    previews = client.text_to_voice.create_previews(
+    previews = client.text_to_voice.design(
         voice_description=voice_description,
         auto_generate_text=True,
         model_id="eleven_ttv_v3",
