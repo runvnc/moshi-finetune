@@ -66,7 +66,7 @@ def process_transcript(transcript, client, output_audio_path, output_text_path, 
     response = client.text_to_dialogue.convert_with_timestamps(
         inputs=inputs,
         model_id="eleven_v3",
-        settings=ModelSettingsResponseModel(stability=0.2)
+        settings=ModelSettingsResponseModel(stability=0.1)
     )
     
     # Decode audio

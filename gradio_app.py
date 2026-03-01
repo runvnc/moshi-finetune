@@ -115,13 +115,14 @@ def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_tu
       2. "agent_voice_prompt": A short description of the AI Agent's voice (e.g., "A professional female customer service agent with a clear American accent.")
       3. "user_voice_prompt": A short description of the User's voice (e.g., "A casual male voice, slightly deep.")
       4. "dialogue": An array of turn objects.
+    - For voice prompts: vary accents across conversations. Many voices should have subtle regional or international accents (e.g. slight Southern US, light British, mild Midwestern, faint New York, soft Australian, gentle Irish, etc.). Keep accents subtle and natural-sounding, not exaggerated.
     
     Example Output:
     [
       {{
         "system_prompt": "<system> You are on an outgoing phone call. Your name: Jordan. Company name: TechVerify Inc. <system>",
-        "agent_voice_prompt": "A cheerful young female voice.",
-        "user_voice_prompt": "An elderly male voice with a British accent.",
+        "agent_voice_prompt": "A cheerful young female voice with a light Southern US accent.",
+        "user_voice_prompt": "An elderly male voice with a mild British accent.",
         "dialogue": [
           {{"speaker": "A", "text": "Hello?"}},
           {{"speaker": "B", "text": "[cheerful] Hi, how can I help you today?"}}
