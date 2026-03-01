@@ -180,10 +180,10 @@ def main():
             else:
                 print(f"Processing {transcript_id}...")
                 print(f\"Processing {transcript_id}...\")
-                # Pick random voices for each conversation based on preferences
+                # Design unique voices for each conversation based on prompts
                 # Speaker A is User, Speaker B is Agent
-                voice_a = get_random_voice(user_gender)
-                voice_b = get_random_voice(agent_gender)
+                voice_a = design_voice(user_voice_prompt)
+                voice_b = design_voice(agent_voice_prompt)
                 duration = process_transcript(transcript, client, audio_path, text_path, voice_a, voice_b, system_prompt)
             
             abs_audio_path = os.path.abspath(audio_path)

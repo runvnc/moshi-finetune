@@ -357,8 +357,8 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
             elevenlabs_api_key = gr.Textbox(label="ElevenLabs API Key", type="password", value=config.get("elevenlabs_api_key", ""), visible=config.get("audio_engine", "Dia2 (Local)") == "ElevenLabs (API)")
             
         with gr.Row(visible=config.get("audio_engine", "Dia2 (Local)") == "ElevenLabs (API)") as el_options:
-            agent_gender = gr.Dropdown(choices=["Random", "Female", "Male"], value=config.get("agent_gender", "Random"), label="Agent Voice Gender")
-            user_gender = gr.Dropdown(choices=["Random", "Female", "Male"], value=config.get("user_gender", "Random"), label="User Voice Gender")
+            agent_voice_prompt = gr.Textbox(label="Agent Voice Design Prompt", value=config.get("agent_voice_prompt", "A professional female customer service agent with a clear American accent."), info="Used to generate a unique voice via ElevenLabs Voice Design.")
+            user_voice_prompt = gr.Textbox(label="User Voice Design Prompt", value=config.get("user_voice_prompt", "A casual male voice, slightly deep."), info="Used to generate a unique voice via ElevenLabs Voice Design.")
             
         gen_audio_btn = gr.Button("Generate Audio & Timestamps", variant="primary")
         audio_output = gr.Textbox(label="Terminal Output", lines=15)
@@ -370,8 +370,8 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
             
         audio_engine.change(update_audio_engine_ui, inputs=[audio_engine], outputs=[elevenlabs_api_key, el_options])
         elevenlabs_api_key.blur(lambda x: save_config("elevenlabs_api_key", x), inputs=[elevenlabs_api_key])
-        agent_gender.change(lambda x: save_config("agent_gender", x), inputs=[agent_gender])
-        user_gender.change(lambda x: save_config("user_gender", x), inputs=[user_gender])
+        agent_voice_prompt.change(lambda x: save_config("agent_voice_prompt", x), inputs=[agent_voice_prompt])
+        user_voice_prompt.change(lambda x: save_config("user_voice_prompt", x), inputs=[user_voice_prompt])
         
         def generate_audio_wrapper(engine, el_api_key):
             yield f"Starting Audio Generation using {engine}...\n"
