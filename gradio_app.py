@@ -39,13 +39,15 @@ def load_transcripts_df():
             if isinstance(item, list):
                 item_id = str(uuid.uuid4())
                 dialogue = item
+                full_obj = {"dialogue": dialogue}
             else:
                 item_id = item.get("id", str(uuid.uuid4()))
                 dialogue = item.get("dialogue", [])
+                full_obj = {k: v for k, v in item.items() if k != "id"}
                 
             turns = len(dialogue)
             preview = dialogue[0].get("text", "")[:50] + "..." if turns > 0 else "Empty"
-            rows.append([item_id, turns, preview, json.dumps(dialogue)])
+            rows.append([item_id, turns, preview, json.dumps(full_obj)])
         return pd.DataFrame(rows, columns=["ID", "Turns", "Preview", "Full JSON"])
     except Exception as e:
         print(f"Error loading transcripts: {e}")
@@ -54,7 +56,13 @@ def load_transcripts_df():
 def save_transcripts_df(df):
     file_path = "data/custom_dataset/raw_transcripts.json"
     try:
-        data = [{"id": row_id, "dialogue": json.loads(dialogue_str)} for row_id, dialogue_str in zip(df["ID"], df["Full JSON"])]
+        data = []
+        for row_id, json_str in zip(df["ID"], df["Full JSON"]):
+            obj = json.loads(json_str)
+            if isinstance(obj, list):
+                obj = {"dialogue": obj}
+            obj["id"] = row_id
+            data.append(obj)
         with open(file_path, "w") as f:
             json.dump(data, f, indent=2)
     except Exception as e:
@@ -88,14 +96,22 @@ def generate_transcripts(api_key, model_name, system_prompt, scenario, num_sampl
       Use these tags inline, for example: "[cheerful] Hello there! [laughs] How can I help you?"
       Do not overdo it, but use them to convey the correct emotion.
     - Each conversation should be approximately {num_turns} turns long, including a natural back-and-forth exchange.
-    - Output strictly as a JSON array of conversations. Each conversation is an array of turn objects.
+    - Output strictly as a JSON array of conversation objects.
+    - Each conversation object MUST contain:
+      1. "agent_voice_prompt": A short description of the AI Agent's voice (e.g., "A professional female customer service agent with a clear American accent.")
+      2. "user_voice_prompt": A short description of the User's voice (e.g., "A casual male voice, slightly deep.")
+      3. "dialogue": An array of turn objects.
     
     Example Output:
     [
-      [
-        {{"speaker": "A", "text": "Hello?"}},
-        {{"speaker": "B", "text": "Hi, how can I help you today?"}}
-      ]
+      {{
+        "agent_voice_prompt": "A cheerful young female voice.",
+        "user_voice_prompt": "An elderly male voice with a British accent.",
+        "dialogue": [
+          {{"speaker": "A", "text": "Hello?"}},
+          {{"speaker": "B", "text": "[cheerful] Hi, how can I help you today?"}}
+        ]
+      }}
     ]
     
     Generate exactly {num_samples} conversations in this exact JSON format.
@@ -127,7 +143,13 @@ def generate_transcripts(api_key, model_name, system_prompt, scenario, num_sampl
         new_data = json.loads(clean_text)
         
         # Wrap new data in UUID objects
-        new_data_with_ids = [{"id": str(uuid.uuid4()), "dialogue": convo} for convo in new_data]
+        new_data_with_ids = []
+        for convo in new_data:
+            if isinstance(convo, list):
+                new_data_with_ids.append({"id": str(uuid.uuid4()), "dialogue": convo})
+            else:
+                convo["id"] = str(uuid.uuid4())
+                new_data_with_ids.append(convo)
         
         os.makedirs("data/custom_dataset", exist_ok=True)
         output_file = "data/custom_dataset/raw_transcripts.json"
@@ -356,22 +378,16 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
             audio_engine = gr.Radio(choices=["Dia2 (Local)", "ElevenLabs (API)"], value=config.get("audio_engine", "Dia2 (Local)"), label="Audio Engine")
             elevenlabs_api_key = gr.Textbox(label="ElevenLabs API Key", type="password", value=config.get("elevenlabs_api_key", ""), visible=config.get("audio_engine", "Dia2 (Local)") == "ElevenLabs (API)")
             
-        with gr.Row(visible=config.get("audio_engine", "Dia2 (Local)") == "ElevenLabs (API)") as el_options:
-            agent_voice_prompt = gr.Textbox(label="Agent Voice Design Prompt", value=config.get("agent_voice_prompt", "A professional female customer service agent with a clear American accent."), info="Used to generate a unique voice via ElevenLabs Voice Design.")
-            user_voice_prompt = gr.Textbox(label="User Voice Design Prompt", value=config.get("user_voice_prompt", "A casual male voice, slightly deep."), info="Used to generate a unique voice via ElevenLabs Voice Design.")
-            
         gen_audio_btn = gr.Button("Generate Audio & Timestamps", variant="primary")
         audio_output = gr.Textbox(label="Terminal Output", lines=15)
         
         def update_audio_engine_ui(engine):
             save_config("audio_engine", engine)
             is_el = engine == "ElevenLabs (API)"
-            return gr.update(visible=is_el), gr.update(visible=is_el)
+            return gr.update(visible=is_el)
             
-        audio_engine.change(update_audio_engine_ui, inputs=[audio_engine], outputs=[elevenlabs_api_key, el_options])
+        audio_engine.change(update_audio_engine_ui, inputs=[audio_engine], outputs=[elevenlabs_api_key])
         elevenlabs_api_key.blur(lambda x: save_config("elevenlabs_api_key", x), inputs=[elevenlabs_api_key])
-        agent_voice_prompt.change(lambda x: save_config("agent_voice_prompt", x), inputs=[agent_voice_prompt])
-        user_voice_prompt.change(lambda x: save_config("user_voice_prompt", x), inputs=[user_voice_prompt])
         
         def generate_audio_wrapper(engine, el_api_key):
             yield f"Starting Audio Generation using {engine}...\n"

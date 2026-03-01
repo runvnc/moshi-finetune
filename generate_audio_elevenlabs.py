@@ -182,6 +182,8 @@ def main():
                 print(f\"Processing {transcript_id}...\")
                 # Design unique voices for each conversation based on prompts
                 # Speaker A is User, Speaker B is Agent
+                user_voice_prompt = transcript_obj.get(\"user_voice_prompt\", \"A casual male voice, slightly deep.\")
+                agent_voice_prompt = transcript_obj.get(\"agent_voice_prompt\", \"A professional female customer service agent with a clear American accent.\")
                 voice_a = design_voice(user_voice_prompt)
                 voice_b = design_voice(agent_voice_prompt)
                 duration = process_transcript(transcript, client, audio_path, text_path, voice_a, voice_b, system_prompt)
