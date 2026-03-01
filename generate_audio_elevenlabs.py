@@ -65,7 +65,7 @@ def process_transcript(transcript, client, output_audio_path, output_text_path, 
         
     print(f"Generating audio for {len(inputs)} turns via ElevenLabs...")
     
-    stability_val = 0.005
+    stability_val = 0.5
     print(f"  Using stability={stability_val}")
     response = client.text_to_dialogue.convert_with_timestamps(
         inputs=inputs,

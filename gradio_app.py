@@ -108,6 +108,8 @@ def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_tu
       Examples of valid tags: [laughs], [sighs], [angry], [cheerful], [whispering], [shouting], [sad], [excited], [nervous], [clears throat], [hmm], [gasp], [surprised], [confused], [hesitant].
       Use these tags inline for BOTH speakers, for example: "[hmm] Yeah, I think so..." or "[sighs] Let me check on that."
       Both speakers should have varied emotional delivery. Do not overdo it, but ensure both speakers sound expressive and human, not robotic.
+    - Also include ambient/background audio event tags occasionally in both speakers' lines, such as [typing in background], [phone ringing in distance], [papers shuffling]. These add realism.
+    - Use ellipses (...) for natural pauses and trailing thoughts, and dashes (--) for interruptions or hesitations. This improves pacing and realism.
     - Each conversation should be approximately {num_turns} turns long, including a natural back-and-forth exchange.
     - Output strictly as a JSON array of conversation objects.
     - Each conversation object MUST contain:
