@@ -78,6 +78,11 @@ def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_tu
         
     genai.configure(api_key=api_key)
     
+    # Auto-wrap in <system> tags if not already present
+    cleaned = system_prompt.strip()
+    if not (cleaned.startswith("<system>") and cleaned.endswith("<system>")):
+        system_prompt = f"<system> {cleaned} <system>"
+
     prompt = f"""
     You are an expert dialogue writer. Generate {num_samples} unique, short dialogue transcripts.
     
@@ -352,8 +357,8 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
                 system_prompt = gr.Textbox(
                     label="System Prompt / Conditioning Prompt", 
                     lines=8, 
-                    value=config.get("system_prompt", "<system> You are a helpful assistant. <system>"),
-                    info="The conditioning prompt the model trains on. Wrap in <system> tags. May contain scenario-specific fields (agent name, company, etc.) — Gemini will generate a unique variation per conversation, varying those fields naturally. If no variable fields are present, it will be used as-is or with minor phrasing variation."
+                    value=config.get("system_prompt", "You are a helpful assistant."),
+                    info="Dialogues will be generated aligned to this. Can optionally contain example fields like agent or company name."
                 )
                 num_samples = gr.Slider(minimum=1, maximum=500, value=config.get("num_samples", 50), step=1, label="Number of Conversations")
                 num_turns = gr.Slider(minimum=2, maximum=20, value=config.get("num_turns", 6), step=1, label="Target Turns per Conversation")
