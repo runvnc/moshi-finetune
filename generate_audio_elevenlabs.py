@@ -41,7 +41,6 @@ def design_voice(client, voice_description):
         auto_generate_text=True,
         model_id="eleven_ttv_v3",
         should_enhance=True,
-        quality=1.0,
         guidance_scale=3,
     )
     preview = previews.previews[0]
