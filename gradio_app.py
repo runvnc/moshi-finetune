@@ -6,6 +6,7 @@ import glob
 import google.generativeai as genai
 import pandas as pd
 import uuid
+import sys
 
 CONFIG_FILE = "ui_config.json"
 
@@ -359,7 +360,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
             return gr.update(visible=engine == "ElevenLabs (API)")
             
         audio_engine.change(update_audio_engine_ui, inputs=[audio_engine], outputs=[elevenlabs_api_key])
-        elevenlabs_api_key.change(lambda x: save_config("elevenlabs_api_key", x), inputs=[elevenlabs_api_key])
+        elevenlabs_api_key.blur(lambda x: save_config("elevenlabs_api_key", x), inputs=[elevenlabs_api_key])
         
         def generate_audio_wrapper(engine, el_api_key):
             yield f"Starting Audio Generation using {engine}...\n"
