@@ -35,17 +35,16 @@ def design_voice(client, voice_description):
         return cache[key]
 
     print(f"  Designing new voice: {voice_description[:60]}...")
-    sample_text = "Hello, thanks for calling. How can I help you today? I'd be happy to assist you with whatever you need. Could you please tell me a bit more about what you're looking for?"
     previews = client.text_to_voice.create_previews(
         voice_description=voice_description,
-        text=sample_text,
+        auto_generate_text=True,
     )
     preview = previews.previews[0]
     voice_name = f"AutoVoice_{key[:8]}"
-    saved = client.text_to_voice.create_voice_from_preview(
-        voice_preview_id=preview.generated_voice_id,
+    saved = client.text_to_voice.create(
         voice_name=voice_name,
         voice_description=voice_description,
+        generated_voice_id=preview.generated_voice_id,
     )
     voice_id = saved.voice_id
     cache[key] = voice_id
