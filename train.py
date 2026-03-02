@@ -142,6 +142,11 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
     lm_config["lora_rank"] = args.lora.rank
     lm_config["lora_scaling"] = args.lora.scaling
 
+    # PersonaPlex HF config omits dep_q/n_q which the Kyutai moshi CheckpointInfo.get_mimi()
+    # requires. Inject defaults matching the personaplex architecture before calling get_mimi().
+    lm_config.setdefault("dep_q", 8)
+    lm_config.setdefault("n_q", 16)
+
     mimi = checkpoint_info.get_mimi(device="cuda")
     mimi.eval()
     for p in mimi.parameters():
