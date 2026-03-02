@@ -271,6 +271,13 @@ print(f'\nDone! Subset saved to {{output_dir}}')
 def run_training(base_model, max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
     yield "Starting LoRA Fine-Tuning...\n"
     
+    # Clear existing run dir to avoid conflict
+    import shutil
+    run_dir = "/files/moshi-finetune/output/custom_model"
+    if os.path.exists(run_dir):
+        yield f"Removing existing run dir: {run_dir}\n"
+        shutil.rmtree(run_dir)
+
     train_data = "'/files/moshi-finetune/data/custom_dataset/dataset.jsonl'"
     if mix_dailytalk:
         train_data = "'/files/moshi-finetune/data/custom_dataset/dataset.jsonl:0.7,/files/moshi-finetune/data/dailytalk_subset/dailytalk_subset.jsonl:0.3'"
@@ -438,6 +445,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
         with gr.Row():
             with gr.Column():
                 base_model = gr.Dropdown(choices=["kyutai/moshiko-pytorch-bf16", "nvidia/personaplex-7b-v1"], value=config.get("base_model", "kyutai/moshiko-pytorch-bf16"), label="Base Model", info="Select the base Moshi model to fine-tune.")
+                hf_token = gr.Textbox(label="HuggingFace Token (HF_TOKEN)", type="password", value=config.get("hf_token", ""), info="Required for gated models like nvidia/personaplex-7b-v1. Get yours at huggingface.co/settings/tokens")
                 max_steps = gr.Slider(minimum=10, maximum=2000, value=config.get("max_steps", 50), step=10, label="Max Training Steps", info="For 100 examples, 50 steps is usually enough.")
                 batch_size = gr.Slider(minimum=4, maximum=64, value=config.get("batch_size", 16), step=4, label="Batch Size", info="Increase to 32 or 48 if you have an H200/A100. Keep at 8-16 for 24GB GPUs.")
                 lr = gr.Textbox(label="Learning Rate", value=config.get("lr", "2e-6"), info="Default is 2e-6.")
