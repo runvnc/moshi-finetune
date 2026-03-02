@@ -184,6 +184,14 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
     if checkpoint_info.lm_config is not None:
         for k, v in _PERSONAPLEX_LM_DEFAULTS.items():
             checkpoint_info.lm_config.setdefault(k, v)
+        # The personaplex HF config may contain extra keys (e.g. 'version', HF metadata)
+        # that Kyutai moshi's LMModel/StreamingTransformerLayer will reject.
+        # Whitelist: keep only keys from our known defaults plus the lora keys we added.
+        _allowed = set(_PERSONAPLEX_LM_DEFAULTS.keys()) | {"lora", "lora_rank", "lora_scaling"}
+        for k in list(checkpoint_info.lm_config.keys()):
+            if k not in _allowed:
+                logger.info(f"Dropping unknown lm_config key: {k!r}")
+                del checkpoint_info.lm_config[k]
 
     # PersonaPlex mimi always uses 8 codebooks regardless of dep_q/n_q.
     # CheckpointInfo.get_mimi() computes num_codebooks = max(dep_q, n_q - dep_q) which
