@@ -25,7 +25,14 @@ def visible_devices() -> List[int]:
     return [int(d) for d in os.environ["CUDA_VISIBLE_DEVICES"].split(",")]
 
 
+def _ensure_cuda_visible_devices():
+    if "CUDA_VISIBLE_DEVICES" not in os.environ:
+        n = torch.cuda.device_count()
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in range(n))
+
+
 def set_device():
+    _ensure_cuda_visible_devices()
     logger.info(f"torch.cuda.device_count: {torch.cuda.device_count()}")
     logger.info(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
     logger.info(f"local rank: {int(os.environ['LOCAL_RANK'])}")
