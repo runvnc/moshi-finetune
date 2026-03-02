@@ -1,6 +1,7 @@
 import dataclasses
 import logging
 import os
+import typing as tp
 import pprint
 import shutil
 from contextlib import ExitStack
@@ -43,6 +44,41 @@ from finetune.monitoring.utils import set_logger
 from finetune.utils import TrainState, logged_closing, set_random_seed
 from finetune.wrapped_model import get_fsdp_model
 from moshi.models import loaders
+
+# PersonaPlex architecture defaults. These fill in keys that the personaplex HF
+# config.json omits but that the Kyutai moshi LMModel / StreamingTransformer require.
+# Values sourced from /files/personaplex/moshi/moshi/models/loaders.py _lm_kwargs
+# plus the dep_q=16 override applied in personaplex's get_moshi_lm().
+_PERSONAPLEX_LM_DEFAULTS: tp.Dict[str, tp.Any] = {
+    "dim": 4096,
+    "text_card": 32000,
+    "existing_text_padding_id": 3,
+    "n_q": 16,
+    "dep_q": 16,   # personaplex overrides _lm_kwargs dep_q=8 -> 16 in get_moshi_lm()
+    "card": 2048,
+    "num_heads": 32,
+    "num_layers": 32,
+    "hidden_scale": 4.125,
+    "causal": True,
+    "layer_scale": None,
+    "context": 3000,
+    "max_period": 10000,
+    "gating": "silu",
+    "norm": "rms_norm_f32",
+    "positional_embedding": "rope",
+    "depformer_dim": 1024,
+    "depformer_dim_feedforward": int(4.125 * 1024),
+    "depformer_num_heads": 16,
+    "depformer_num_layers": 6,
+    "depformer_layer_scale": None,
+    "depformer_multi_linear": True,
+    "depformer_context": 8,
+    "depformer_max_period": 10000,
+    "depformer_gating": "silu",
+    "depformer_pos_emb": "none",
+    "depformer_weights_per_step": True,
+    "delays": [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1],
+}
 
 logger = logging.getLogger("train")
 
@@ -142,16 +178,22 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
     lm_config["lora_rank"] = args.lora.rank
     lm_config["lora_scaling"] = args.lora.scaling
 
-    # PersonaPlex HF config omits dep_q/n_q which the Kyutai moshi CheckpointInfo.get_mimi()
-    # requires. Note: checkpoint_info.lm_config is a COPY of raw_config (not the same object),
-    # so we must patch it directly. Inject defaults matching the personaplex architecture.
+    # The PersonaPlex HF config.json omits many keys that the Kyutai moshi LMModel requires.
+    # checkpoint_info.lm_config is a COPY of raw_config (not the same object), so patch it
+    # directly. Apply all personaplex architecture defaults for any missing keys.
     if checkpoint_info.lm_config is not None:
-        checkpoint_info.lm_config.setdefault("dep_q", 8)
-        checkpoint_info.lm_config.setdefault("n_q", 16)
-        # delays must have one entry per codebook (1 text + n_q audio = 17 total)
-        checkpoint_info.lm_config.setdefault("delays", [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1])
+        for k, v in _PERSONAPLEX_LM_DEFAULTS.items():
+            checkpoint_info.lm_config.setdefault(k, v)
 
-    mimi = checkpoint_info.get_mimi(device="cuda")
+    # PersonaPlex mimi always uses 8 codebooks regardless of dep_q/n_q.
+    # CheckpointInfo.get_mimi() computes num_codebooks = max(dep_q, n_q - dep_q) which
+    # gives 16 when dep_q=16, n_q=16 -- wrong for personaplex. Call get_mimi() directly.
+    mimi = loaders.get_mimi(
+        checkpoint_info.mimi_weights,
+        checkpoint_info.mimi_config,
+        num_codebooks=8,
+        device="cuda",
+    )
     mimi.eval()
     for p in mimi.parameters():
         p.requires_grad = False
