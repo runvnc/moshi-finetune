@@ -148,6 +148,8 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
     if checkpoint_info.lm_config is not None:
         checkpoint_info.lm_config.setdefault("dep_q", 8)
         checkpoint_info.lm_config.setdefault("n_q", 16)
+        # delays must have one entry per codebook (1 text + n_q audio = 17 total)
+        checkpoint_info.lm_config.setdefault("delays", [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1])
 
     mimi = checkpoint_info.get_mimi(device="cuda")
     mimi.eval()
