@@ -234,7 +234,7 @@ from tqdm import tqdm
 
 repo_id = 'kyutai/DailyTalkContiguous'
 repo_type = 'dataset'
-output_dir = '/files/moshi-finetune/data/dailytalk_subset'
+output_dir = 'data/dailytalk_subset'
 audio_dir = os.path.join(output_dir, 'data_stereo')
 jsonl_path = os.path.join(output_dir, 'dailytalk_subset.jsonl')
 
@@ -273,14 +273,14 @@ def run_training(base_model, max_steps, batch_size, learning_rate, mix_dailytalk
     
     # Clear existing run dir to avoid conflict
     import shutil
-    run_dir = "/files/moshi-finetune/output/custom_model"
+    run_dir = "output/custom_model"
     if os.path.exists(run_dir):
         yield f"Removing existing run dir: {run_dir}\n"
         shutil.rmtree(run_dir)
 
-    train_data = "'/files/moshi-finetune/data/custom_dataset/dataset.jsonl'"
+    train_data = "'data/custom_dataset/dataset.jsonl'"
     if mix_dailytalk:
-        train_data = "'/files/moshi-finetune/data/custom_dataset/dataset.jsonl:0.7,/files/moshi-finetune/data/dailytalk_subset/dailytalk_subset.jsonl:0.3'"
+        train_data = "'data/custom_dataset/dataset.jsonl:0.7,data/dailytalk_subset/dailytalk_subset.jsonl:0.3'"
     
     # Update config.yaml
     config_content = f"""# data
@@ -323,7 +323,7 @@ ckpt_freq: 100
 
 save_adapters: true
 
-run_dir: "/files/moshi-finetune/output/custom_model"
+run_dir: "output/custom_model"
 """
     with open("config_custom.yaml", "w") as f:
         f.write(config_content)
