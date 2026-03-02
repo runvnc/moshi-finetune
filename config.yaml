@@ -2,7 +2,7 @@
 data:
   eval_data: ''
   shuffle: true
-  train_data: '/files/moshi-finetune/data/custom_dataset/dataset.jsonl'
+  train_data: 'data/custom_dataset/dataset.jsonl'
 
 # model
 moshi_paths: 
@@ -38,4 +38,4 @@ ckpt_freq: 100
 
 save_adapters: true
 
-run_dir: "/files/moshi-finetune/output/custom_model"
+run_dir: "output/custom_model"
