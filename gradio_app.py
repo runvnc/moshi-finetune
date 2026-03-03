@@ -268,7 +268,7 @@ print(f'\nDone! Subset saved to {{output_dir}}')
     for log in run_command("uv pip install huggingface_hub tqdm && uv run download_dailytalk_temp.py"):
         yield log
 
-def run_training(base_model, max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
+def run_training(base_model, hf_token, max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
     yield "Starting LoRA Fine-Tuning...\n"
     
     # Clear existing run dir to avoid conflict
@@ -328,8 +328,12 @@ run_dir: "output/custom_model"
     with open("config_custom.yaml", "w") as f:
         f.write(config_content)
     
+    env = os.environ.copy()
+    if hf_token:
+        env["HF_TOKEN"] = hf_token
+        env["HUGGING_FACE_HUB_TOKEN"] = hf_token
     cmd = "uv pip install -e . && uv run torchrun --nproc-per-node 1 -m train config_custom.yaml"
-    for log in run_command(cmd):
+    for log in run_command(cmd, env=env):
         yield log
 
 def export_model():
@@ -470,7 +474,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
         lora_scaling.change(lambda x: save_config("lora_scaling", x), inputs=[lora_scaling])
         duration_sec.change(lambda x: save_config("duration_sec", x), inputs=[duration_sec])
 
-        train_btn.click(run_training, inputs=[base_model, max_steps, batch_size, lr, mix_dailytalk, lora_rank, lora_scaling, duration_sec], outputs=train_output)
+        train_btn.click(run_training, inputs=[base_model, hf_token, max_steps, batch_size, lr, mix_dailytalk, lora_rank, lora_scaling, duration_sec], outputs=train_output)
 
     with gr.Tab("5. Export Model"):
         gr.Markdown("**Final Step:** Locate the final LoRA adapter weights for deployment.")
