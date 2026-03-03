@@ -288,5 +288,19 @@ class InterleavedTokenizer:
             codes = torch.cat([text_tokens, audio_tokens], dim=1)
             text_conditions = data.get("text_conditions", None)
             if text_conditions is not None:
-                text_conditions = ConditionAttributes(text=text_conditions)
-            return Sample(codes, text_conditions)
+                # PersonaPlex conditions via text token injection (no condition_provider).
+                # Prepend system prompt tokens into the leading zero-padding frames of
+                # the text channel, mirroring what step_system_prompts_async does at
+                # inference time before the conversation starts.
+                spm = self.interleaver.tokenizer
+                prompt_text = text_conditions if isinstance(text_conditions, str) else str(text_conditions)
+                prompt_text = prompt_text.strip()
+                if not (prompt_text.startswith("<system>") and prompt_text.endswith("<system>")):
+                    prompt_text = f"<system> {prompt_text} <system>"
+                prompt_tokens = spm.encode(prompt_text)
+                T = codes.shape[-1]
+                for i, tok in enumerate(prompt_tokens):
+                    if i >= T:
+                        break
+                    codes[0, 0, i] = tok
+            return Sample(codes, None)
