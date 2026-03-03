@@ -111,4 +111,4 @@ testpaths = []
 addopts = "--ignore=third_party --ignore=tokens"
 
 [tool.uv.extra-build-dependencies]
-openai-whisper = ["setuptools<70"]
+openai-whisper = ["setuptools<70", "wheel"]
