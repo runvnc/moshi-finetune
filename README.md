@@ -16,12 +16,23 @@ It is a fork of the official [kyutai-labs/moshi-finetune](https://github.com/kyu
 
 ### 1. Install Dependencies
 
-We recommend using `uv` for fast dependency management:
+We recommend using `uv` for fast dependency management.
+
+**Clone and sync:**
 
 ```bash
-uv pip install -e .
-uv pip install google-generativeai gradio huggingface_hub tqdm torchaudio
+git clone https://github.com/runvnc/moshi-finetune.git
+cd moshi-finetune
 ```
+
+> **Note:** `openai-whisper` has broken build metadata and requires `setuptools<70` and `wheel` to be pre-installed in the venv before `uv sync` will succeed. Run:
+
+```bash
+uv pip install 'setuptools<70' wheel
+uv sync
+```
+
+This is a known upstream issue with `openai-whisper==20240930`. The `[tool.uv.extra-build-dependencies]` workaround is present in `pyproject.toml` but the feature is experimental and unreliable in current uv versions, so the manual pre-install step is required.
 
 ### 2. Launch the Studio UI
 
