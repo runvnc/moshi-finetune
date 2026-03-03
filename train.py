@@ -305,9 +305,9 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
 
             condition_tensors = None
             if batch.condition_attributes is not None:
-                condition_tensors = model.condition_provider.prepare(
-                    batch.condition_attributes
-                )
+                cp = getattr(model, 'condition_provider', None)
+                if cp is not None:
+                    condition_tensors = cp.prepare(batch.condition_attributes)
 
             # forward / backward
             output = model(codes=codes, condition_tensors=condition_tensors)
