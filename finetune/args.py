@@ -56,11 +56,7 @@ class ModelPaths(Serializable):
     config_path: str | None = None
 
     def __post_init__(self) -> None:
-        if self.hf_repo_id is not None and self.config_path is None:
-            print(
-                "Warning: `hf_repo_id` is set but `config_path` is None. "
-                "This will load default models."
-            )
+        pass  # config.json is auto-downloaded from hf_repo_id by CheckpointInfo.from_hf_repo()
 
 
 @dataclass

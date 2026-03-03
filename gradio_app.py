@@ -339,7 +339,7 @@ run_dir: "output/custom_model"
 def export_model():
     yield "Finding latest LoRA checkpoint...\n"
     
-    checkpoints = glob.glob("output/custom_model/checkpoints/checkpoint_*")
+    checkpoints = glob.glob(os.path.join(os.getcwd(), "output/custom_model/checkpoints/checkpoint_*"))
     
     valid_checkpoints = []
     for c in checkpoints:
@@ -350,16 +350,28 @@ def export_model():
             pass
 
     if not valid_checkpoints:
-        yield "❌ Error: No training checkpoints found in output/custom_model/"
+        yield f"❌ Error: No training checkpoints found in {os.path.abspath('output/custom_model/checkpoints/')}"
         return
         
     latest_checkpoint = sorted(valid_checkpoints)[-1][1]
     step_name = os.path.basename(latest_checkpoint)
+    lora_path = os.path.join(latest_checkpoint, "consolidated", "lora.safetensors")
+    adapter_dir = os.path.join(latest_checkpoint, "consolidated")
     
     yield f"Found latest checkpoint: {step_name}\n"
     yield "\nWith LoRA, no complex export is needed! The adapters are already saved as safetensors.\n"
-    yield f"\n\n🎉 ALL DONE! Your final deployable LoRA adapter is located at:\n{os.path.abspath(latest_checkpoint)}/consolidated/lora.safetensors"
-    yield "\nYou can load this into the Moshi server using the --lora-weight argument."
+    yield f"\n📁 Checkpoint directory:\n  {os.path.abspath(latest_checkpoint)}\n"
+    yield f"\n📁 Adapter directory:\n  {os.path.abspath(adapter_dir)}\n"
+    if os.path.exists(lora_path):
+        size_mb = os.path.getsize(lora_path) / (1024 * 1024)
+        yield f"\n🎉 ALL DONE! LoRA adapter ({size_mb:.0f} MB):\n  {os.path.abspath(lora_path)}\n"
+    else:
+        yield f"\n⚠️ lora.safetensors not found at expected path:\n  {os.path.abspath(lora_path)}\n"
+        yield f"  Files in adapter dir:\n"
+        if os.path.exists(adapter_dir):
+            for f in os.listdir(adapter_dir):
+                yield f"    {f}\n"
+    yield "\nTo deploy, pass to the Moshi server:\n  python -m moshi.server --lora-weight=<path above> --config-path=<config.json>"
 
 # --- Gradio UI Layout ---
 config = load_config()
