@@ -198,7 +198,6 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
     # gives 16 when dep_q=16, n_q=16 -- wrong for personaplex. Call get_mimi() directly.
     mimi = loaders.get_mimi(
         checkpoint_info.mimi_weights,
-        checkpoint_info.mimi_config,
         num_codebooks=8,
         device="cuda",
     )
