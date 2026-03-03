@@ -11,12 +11,13 @@ dependencies = [
   "safetensors",
   "tensorboard",
   "tqdm",
+  "setuptools<70",
   "torch>=2.8.0",
   "triton>=3.2",
   # "git+https://git@github.com/kyutai-labs/moshi.git#egg=moshi&subdirectory=moshi",
   # We could also use [tool.uv.sources] to point to the git repo, but this maintains
   # compatibility with `pip install -e .`
-  "moshi @ git+https://github.com/kyutai-labs/moshi.git#subdirectory=moshi",
+  "moshi @ git+https://github.com/kyutai-labs/moshi.git@061cc4c630d9e11722e08b7d02b1836ba58f30e8#subdirectory=moshi",
   "sphn>=0.2.0",
   "auditok==0.2",
   "whisper_timestamped",
@@ -49,6 +50,10 @@ dev = [
 # The following fixes Pylance/VSCode not seeing the `finetune` package. See
 # https://github.com/astral-sh/uv/issues/3898
 config-settings = { editable_mode = "compat" }
+override-dependencies = [
+  "torch>=2.8.0",
+]
+no-build-isolation-package = ["openai-whisper"]
 
 [tool.setuptools]
 packages = ["finetune"]
