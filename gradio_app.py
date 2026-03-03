@@ -371,15 +371,16 @@ def export_model():
         if os.path.exists(adapter_dir):
             for f in os.listdir(adapter_dir):
                 yield f"    {f}\n"
-    configs_dir = os.path.abspath("configs")
-    pp_config = os.path.join(configs_dir, "personaplex.json")
-    yield "\n\nTo deploy with the upstream moshi server:"
-    yield f"\n  uv run python -m moshi.server \\"
+    lora_abs = os.path.abspath(lora_path)
+    yield "\n\n--- Deploy with PersonaPlex server (supports voice cloning) ---"
+    yield f"\n  cd /path/to/personaplex"
+    yield f"\n  git pull"
+    yield f"\n  pip install -e moshi/"
+    yield f"\n  python -m moshi.server \\"
     yield f"\n    --hf-repo nvidia/personaplex-7b-v1 \\"
-    yield f"\n    --config-path {pp_config} \\"
-    yield f"\n    --lora-weight {os.path.abspath(lora_path)} \\"
+    yield f"\n    --lora-weight {lora_abs} \\"
+    yield f"\n    --lora-rank 32 --lora-scaling 2.0 \\"
     yield f"\n    --host 0.0.0.0 --port 8998"
-    yield "\n\n(configs/personaplex.json provides the full arch params including dep_q=16)"
 
 # --- Gradio UI Layout ---
 config = load_config()
