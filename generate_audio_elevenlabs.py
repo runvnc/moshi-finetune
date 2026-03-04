@@ -27,6 +27,29 @@ def save_voice_cache(cache):
     with open(VOICE_CACHE_FILE, "w") as f:
         json.dump(cache, f, indent=2)
 
+
+def delete_voice(client, voice_id):
+    """Delete a voice from ElevenLabs and remove from cache."""
+    try:
+        client.voices.delete(voice_id)
+        print(f"  Deleted ElevenLabs voice: {voice_id}")
+        return True
+    except Exception as e:
+        print(f"  Warning: could not delete voice {voice_id}: {e}")
+        return False
+
+def cleanup_voices(client, used_voice_ids):
+    """Delete all AutoVoice voices from ElevenLabs that were used in this run."""
+    cache = load_voice_cache()
+    # Find cache entries whose voice_id is in used_voice_ids
+    keys_to_remove = [k for k, v in cache.items() if v in used_voice_ids]
+    for key in keys_to_remove:
+        voice_id = cache[key]
+        if delete_voice(client, voice_id):
+            del cache[key]
+    save_voice_cache(cache)
+    print(f"  Cleaned up {len(keys_to_remove)} voices from ElevenLabs.")
+
 def design_voice(client, voice_description):
     """Create or retrieve a cached ElevenLabs voice from a text description."""
     cache = load_voice_cache()
@@ -183,6 +206,7 @@ def main():
         return
         
     client = ElevenLabs(api_key=api_key)
+    used_voice_ids = set()  # track voices created this run for cleanup
     
     # Default voices (can be overridden via env vars or UI later)
     voice_a = os.getenv("ELEVENLABS_VOICE_A", "9BWtsMINqrJLrRacOk9x") # Aria
@@ -214,6 +238,8 @@ def main():
                 agent_voice_prompt = transcript_obj.get("agent_voice_prompt", "A professional female customer service agent with a clear American accent.")
                 voice_a = design_voice(client, user_voice_prompt)
                 voice_b = design_voice(client, agent_voice_prompt)
+                used_voice_ids.add(voice_a)
+                used_voice_ids.add(voice_b)
                 system_prompt = transcript_obj.get("system_prompt", "") if isinstance(transcript_obj, dict) else ""
                 duration = process_transcript(transcript, client, audio_path, text_path, voice_a, voice_b, system_prompt)
             
@@ -228,6 +254,10 @@ def main():
                 file_path = os.path.join(audio_dir, filename)
                 os.remove(file_path)
                 print(f"Deleted orphaned file: {filename}")
+
+    print("\nCleaning up ElevenLabs voices...")
+    if used_voice_ids:
+        cleanup_voices(client, used_voice_ids)
 
     print("\nAll audio and timestamps generated successfully!")
     print(f"Dataset ready at {dataset_jsonl}")
