@@ -1,160 +1,129 @@
-# Engineering Handoff: Moshi-Finetune + PersonaPlex
+# Engineering Handoff - Moshi PersonaPlex Fine-Tuning Studio
 
-**Date:** 2026-03-03  
-**Context:** Fine-tuning PersonaPlex (nvidia/personaplex-7b-v1) with LoRA for outbound call scenarios.
+## Overview
 
----
+This repo (`moshi-finetune`) is a fine-tuning studio for `nvidia/personaplex-7b-v1`, a voice AI model based on Kyutai Moshi. It provides a Gradio UI for generating synthetic dialogue data, training LoRA adapters, and deploying them.
 
-## Repos
+## Repo Locations
 
-| Repo | Local Path | RunPod Path | GitHub |
-|------|-----------|-------------|--------|
+| Repo | Local | RunPod | GitHub |
+|------|-------|--------|--------|
 | moshi-finetune | /files/moshi-finetune | /workspace/moshi-finetune | github.com/runvnc/moshi-finetune |
 | personaplex | /files/personaplex | /workspace/personaplex | github.com/runvnc/personaplex |
 
----
+## Architecture
 
-## Architecture Overview
+### Two Moshi Forks
 
-**Training:** Uses upstream kyutai moshi (pinned to commit `061cc4c`) via the moshi-finetune venv. The personaplex architecture defaults (dep_q=16, etc.) are injected at runtime in `train.py` since the personaplex HF config.json only contains `{"model_type": "personaplex", "version": "7b-v1"}`.
+| | Upstream Kyutai Moshi | PersonaPlex Fork |
+|---|---|---|
+| Used for | Training | Inference |
+| Has | CheckpointInfo, FSDP, LoRA training infra | Voice cloning, dep_q=16, get_lora_moshi() |
+| Installed | Via pyproject.toml git dep in moshi-finetune venv | pip install -e /workspace/personaplex/moshi/ |
+| Python module name | `moshi` | `moshi` (CONFLICT - see below) |
 
-**Inference:** Uses the personaplex moshi fork (`/workspace/personaplex/moshi/`) which has voice cloning support. The LoRA weights from training use Kyutai key format; `get_lora_moshi()` in the personaplex fork translates them automatically (`.in_projs.0.` -> `.in_proj.`).
+### Key Architecture Difference
 
-**Why two different moshi forks?**
-- Upstream moshi has FSDP, CheckpointInfo, proper LoRA training infrastructure
-- PersonaPlex fork has voice cloning, the right dep_q=16 architecture, and `get_lora_moshi()` with key translation
-- The key translation in personaplex's `get_lora_moshi()` was specifically designed for this cross-fork workflow
+PersonaPlex uses `dep_q=16` and `depformer_weights_per_step=True`. The upstream kyutai moshi uses `dep_q=8` by default but the training code patches this via `_PERSONAPLEX_LM_DEFAULTS` in `train.py`.
 
----
+### LoRA Key Translation Problem (PARTIALLY FIXED)
 
-## Key Architecture Differences: PersonaPlex vs Base Moshi
+The upstream kyutai moshi stores weights_per_step attention as a **ModuleList** of N separate linears:
+- `depformer.layers.0.self_attn.in_projs.0.lora_B.weight` shape [3072, 32]
+- `depformer.layers.0.self_attn.in_projs.1.lora_B.weight` shape [3072, 32]
+- ... through in_projs.15
 
-PersonaPlex uses `dep_q=16` (vs base moshi `dep_q=8`). All other arch params are the same. The full set of defaults is in:
-- `train.py`: `_PERSONAPLEX_LM_DEFAULTS` dict (injected into lm_config at training time)
-- `configs/personaplex.json`: same values, used for inference with upstream moshi server
+PersonaPlex stores it as one **fused linear**:
+- `depformer.layers.0.self_attn.in_proj.lora_B.weight` shape [49152, 32] = 16 * 3072
 
----
+The translation in `personaplex/moshi/moshi/models/loaders.py` `get_lora_moshi()` now:
+1. Groups all `in_projs.N` keys by prefix
+2. Stacks `lora_B` tensors along dim=0 to form fused tensor
+3. Takes `lora_A` from index 0 only (shared down-projection)
 
-## Training Setup (moshi-finetune)
+## Current Status (as of 2026-03-04)
 
-### Install
+### What Works
+- Training runs correctly with dep_q=16 and depformer_weights_per_step=True (verified via debug log)
+- LoRA checkpoint shapes are now correct (in_projs.N structure)
+- Base model loads without crashing (fixed meta tensor .to() bug in get_moshi_lm)
+- LoRA key translation stacks in_projs.N -> in_proj correctly
+
+### What Is Broken / In Progress
+
+**CURRENT BUG**: `get_lora_moshi()` in personaplex loaders.py line ~461 calls `model.to(dtype=dtype, device=device)` AFTER `load_state_dict(..., assign=True)`. This crashes with:
+```
+NotImplementedError: Cannot copy out of meta tensor
+```
+because `transformer.layers.*.self_attn.in_proj.weight` (the base model weights, not LoRA) are still meta tensors - they were missing from the base model safetensors and left as meta. The LoRA only fills the lora_A/lora_B sub-weights, not the frozen_W.
+
+**Fix needed**: In `get_lora_moshi()`, remove or replace the `model = model.to(dtype=dtype, device=device)` call at line ~461. Same fix as was applied to `get_moshi_lm()` - just return model without calling .to().
+
+File: `/files/personaplex/moshi/moshi/models/loaders.py`
+
+Look for:
+```python
+        model = model.to(dtype=dtype, device=device)
+        if fuse_lora:
+            replace_lora_with_linear(model)
+    return model
+```
+
+Change to:
+```python
+        # NOTE: do NOT call model.to() - assign=True already placed tensors on device
+        # and remaining meta tensors (frozen_W for in_proj) will be filled by LoRA forward
+        if fuse_lora:
+            replace_lora_with_linear(model)
+    return model
+```
+
+However, there may be a deeper issue: the `frozen_W` inside each `LoRALinear` for the `in_proj` layers may still be meta tensors since the base model weights for those layers are missing from the safetensors file. Need to verify this doesn't cause a runtime crash during inference.
+
+### Why in_proj weights are missing from base model
+
+The personaplex base model safetensors does NOT contain `transformer.layers.*.self_attn.in_proj.weight` keys. This is because the base model was saved with the upstream kyutai format (`in_projs.0` through `in_projs.N`), but the personaplex inference code expects the fused `in_proj` format. The `get_moshi_lm()` function handles this by logging "Missing" for those keys and leaving them as meta tensors, expecting LoRA to fill them.
+
+But LoRA only fills `lora_A` and `lora_B`, not `frozen_W`. So `frozen_W` inside each `LoRALinear` for `in_proj` is a meta tensor. This will crash on first forward pass.
+
+**Possible fix**: In `replace_all_linear_with_lora()`, when creating a LoRALinear to replace a meta-device Linear, initialize `frozen_W` as zeros on the target device rather than meta. Or: load the base model weights for in_proj by translating from the base model safetensors (which has in_projs.0 through in_projs.N).
+
+## Running the Server (when working)
+
+```bash
+cd /workspace/personaplex
+git pull
+python3 -m moshi.server \
+  --hf-repo nvidia/personaplex-7b-v1 \
+  --lora-weight /workspace/moshi-finetune/output/custom_model/checkpoints/checkpoint_XXXXXX/consolidated/lora.safetensors \
+  --lora-rank 32 \
+  --lora-scaling 2.0 \
+  --host 0.0.0.0 \
+  --port 3030
+```
+
+## Running the Training UI
+
 ```bash
 cd /workspace/moshi-finetune
 git pull
-uv pip install 'setuptools<70' wheel  # required before uv sync (openai-whisper build bug)
-uv sync
-```
-
-### Launch UI
-```bash
 uv run gradio_app.py --system
 # Opens on port 7860
 ```
 
-### Training Flow
-1. Tab 1: Generate transcripts (Gemini API key required)
-2. Tab 2: Generate audio (ElevenLabs API key required) - saves stereo WAV + JSON timestamps + `text_conditions` (system prompt)
-3. Tab 3: Download DailyTalk subset (optional, prevents catastrophic forgetting)
-4. Tab 4: Train - select `nvidia/personaplex-7b-v1`, enter HF token, click Start
-5. Tab 5: Export - shows exact paths and server command
+The training tab now defaults to nvidia/personaplex-7b-v1 only.
 
-### Training Notes
-- `text_conditions` (persona/system prompt) is saved in the JSON files and read by the interleaver
-- The base personaplex model has `condition_provider=None` when loaded via upstream moshi, so text conditioning is silently dropped during training (the model learns persona from audio patterns only)
-- LoRA rank=32, scaling=2.0 are the defaults
-- Checkpoint saved to `output/custom_model/checkpoints/checkpoint_XXXXXX/consolidated/lora.safetensors`
+## Key Files
 
----
+- `train.py` - Main training script. Contains `_PERSONAPLEX_LM_DEFAULTS` which patches dep_q=16 etc.
+- `gradio_app.py` - Gradio UI
+- `finetune/wrapped_model.py` - FSDP model wrapper, calls CheckpointInfo.get_moshi()
+- `personaplex/moshi/moshi/models/loaders.py` - THE KEY FILE. Contains get_moshi_lm() and get_lora_moshi()
+- `personaplex/moshi/moshi/modules/lora.py` - LoRALinear implementation
 
-## Inference Setup (PersonaPlex Server)
+## Environment (RunPod)
 
-### The Namespace Conflict Problem
-
-Both `moshi` (upstream, from git) and `moshi-personaplex` (personaplex fork) install into the `moshi` Python namespace. When both are present, they conflict. The upstream moshi's `server.py` doesn't have `--lora-rank`/`--lora-scaling` args; the personaplex one does.
-
-**Current workaround:** Run the personaplex server.py directly by full path using the moshi-finetune venv (which has the right torch version - 2.10+cu128):
-
-```bash
-cd /workspace/moshi-finetune
-
-# Install personaplex moshi into the finetune venv (overrides upstream moshi)
-uv pip install -e /workspace/personaplex/moshi/
-
-# Run server directly by path to avoid namespace ambiguity
-.venv/bin/python3 /workspace/personaplex/moshi/moshi/server.py \
-  --hf-repo nvidia/personaplex-7b-v1 \
-  --lora-weight output/custom_model/checkpoints/checkpoint_XXXXXX/consolidated/lora.safetensors \
-  --lora-rank 32 --lora-scaling 2.0 \
-  --host 0.0.0.0 --port 8188
-```
-
-**After serving, restore training venv:**
-```bash
-uv sync  # restores upstream moshi for training
-```
-
-### Why not use system Python for serving?
-The system Python has `torch 2.10+cu130` which requires CUDA driver 13.0+. The RunPod instance has driver 12.0.90 (too old). The moshi-finetune venv has `torch 2.10+cu128` which works.
-
-### Voice Cloning
-The personaplex server supports voice cloning via `--voice-prompt-dir`. Voice prompts are downloaded automatically from the HF repo to `~/.cache/huggingface/hub/models--nvidia--personaplex-7b-v1/.../voices/`. Pass a custom voice prompt dir with `--voice-prompt-dir /path/to/voices/`.
-
-### Client UI
-The personaplex server serves its own static client from the HF repo cache. Access at `http://<host>:8188` after server starts.
-
----
-
-## Key Fixes Made (2026-03-03)
-
-| Commit | Fix |
-|--------|-----|
-| ac05871 | torch>=2.8 override, pin moshi git commit, fix openai-whisper build |
-| 453cd3b | Add wheel to openai-whisper extra-build-dependencies |
-| fa6556e | Add soundfile dependency |
-| a2ae7ae | Remove non-existent mimi_config arg from get_mimi call |
-| 772ea90 | Guard condition_provider.prepare() when model has no condition_provider |
-| 1f0c4a9 | Pass HF token to training subprocess env |
-| 0d152de | Export tab shows full paths and file sizes |
-| 33591cc | Add configs/personaplex.json with full arch params |
-| 2d2b2be | Export tab shows personaplex server command |
-
-**personaplex repo:**
-| Commit | Fix |
-|--------|-----|
-| 602898e | Wire --lora-weight to get_lora_moshi, add --lora-rank/--lora-scaling args, remove torch<2.5 constraint |
-
----
-
-## Known Issues / TODO
-
-1. **Namespace conflict**: Running `python3 -m moshi.server` picks up whichever moshi is first in sys.path. Use full path to server.py as workaround (see above). Proper fix: create a dedicated serving venv or rename the personaplex package's module.
-
-2. **Text conditioning not used during training**: The personaplex model loaded via upstream moshi has `condition_provider=None` (the HF config doesn't specify conditioner params). The persona text from `text_conditions` is silently dropped. The model learns persona from audio patterns only. To fix: would need to add conditioner config to the personaplex HF config or inject it in training code.
-
-3. **Only 10 training steps tested**: The test run used 10 steps. Real training needs 500-2000 steps with a proper dataset.
-
-4. **openai-whisper manual pre-install**: On fresh installs, must run `uv pip install 'setuptools<70' wheel` before `uv sync`. Documented in README.
-
----
-
-## Data Pipeline
-
-```
-Gemini API -> transcripts (JSON with system_prompt, turns)
-    -> ElevenLabs API -> stereo WAV (agent=left, user=right) + timestamps JSON
-    -> dataset.jsonl (paths + durations)
-    -> [optional] mix with DailyTalk 70/30
-    -> training
-```
-
-Data lives in `data/custom_dataset/`. The `text_conditions` field in the timestamp JSON carries the system prompt for conditioning.
-
----
-
-## Environment
-
-- RunPod: RTX 5090, CUDA driver 12.0.90
-- Python 3.12
-- torch 2.10+cu128 (in moshi-finetune venv)
-- uv 0.8.5
-- moshi-finetune venv: `/workspace/moshi-finetune/.venv`
+- GPU: RTX 5090
+- Python: 3.12 system
+- Training: `uv run ... --system` (no venv, system Python)
+- Inference: `python3 -m moshi.server` (system Python, personaplex moshi on path)
