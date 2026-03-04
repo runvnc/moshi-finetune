@@ -206,6 +206,7 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
         p.requires_grad = False
 
     # 4.2 Load and shard model, prepare interleaver for audio/text tokens.
+    main_logger_info(f"LM config being used for model build: {checkpoint_info.lm_config}")
     model = get_fsdp_model(args, checkpoint_info)
 
     spm = checkpoint_info.get_text_tokenizer()
