@@ -271,7 +271,7 @@ print(f'\nDone! Subset saved to {{output_dir}}')
 def run_training(base_model, hf_token, max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
     import subprocess, sys, importlib
     yield "Installing personaplex moshi...\n"
-    result = subprocess.run([sys.executable, "-m", "pip", "install", "-e", "/workspace/personaplex/moshi/", "-q"], capture_output=True, text=True)
+    result = subprocess.run(["pip3", "install", "-e", "/workspace/personaplex/moshi/", "-q"], capture_output=True, text=True)
     if result.returncode != 0:
         yield f"ERROR: Failed to install personaplex moshi:\n{result.stderr}\nAborting training.\n"
         return
