@@ -50,6 +50,41 @@ def cleanup_voices(client, used_voice_ids):
     save_voice_cache(cache)
     print(f"  Cleaned up {len(keys_to_remove)} voices from ElevenLabs.")
 
+
+# Curated list of ElevenLabs public voice IDs with rough gender/style labels
+# These are stable built-in voices that don't count against voice creation limits
+_PUBLIC_VOICES_MALE = [
+    "IKne3meq5aSn9XLyUdCD",  # Charlie
+    "N2lVS1w4EtoT3dr4eOWO",  # Callum
+    "ODq5zmih8GrVes37Dizd",  # Patrick
+    "TxGEqnHWrfWFTfGW9XjX",  # Josh
+    "VR6AewLTigWG4xSOukaG",  # Arnold
+    "pNInz6obpgDQGcFmaJgB",  # Adam
+    "yoZ06aMxZJJ28mfd3POQ",  # Sam
+]
+_PUBLIC_VOICES_FEMALE = [
+    "9BWtsMINqrJLrRacOk9x",  # Aria
+    "EXAVITQu4vr4xnSDxMaL",  # Bella
+    "MF3mGyEYCl7XYWbV9V6O",  # Elli
+    "ThT5KcBeYPX3keUQqHPh",  # Dorothy
+    "XB0fDUnXU5powFXDhCwa",  # Charlotte
+    "jBpfuIE2acCO8z3wKNLl",  # Gigi
+    "oWAxZDx7w5VEj9dCyTzz",  # Grace
+]
+
+def pick_public_voice(voice_description):
+    """Pick a random public ElevenLabs voice based on gender hint in description."""
+    desc_lower = voice_description.lower()
+    if any(w in desc_lower for w in ["female", "woman", "girl", "lady"]):
+        pool = _PUBLIC_VOICES_FEMALE
+    elif any(w in desc_lower for w in ["male", "man", "boy", "guy"]):
+        pool = _PUBLIC_VOICES_MALE
+    else:
+        pool = _PUBLIC_VOICES_MALE + _PUBLIC_VOICES_FEMALE
+    chosen = random.choice(pool)
+    print(f"  Using public voice {chosen} for: {voice_description[:50]}")
+    return chosen
+
 def design_voice(client, voice_description):
     """Create or retrieve a cached ElevenLabs voice from a text description."""
     cache = load_voice_cache()
@@ -206,8 +241,6 @@ def main():
         return
         
     client = ElevenLabs(api_key=api_key)
-    used_voice_ids = set()  # track voices created this run for cleanup
-    
     # Default voices (can be overridden via env vars or UI later)
     voice_a = os.getenv("ELEVENLABS_VOICE_A", "9BWtsMINqrJLrRacOk9x") # Aria
     voice_b = os.getenv("ELEVENLABS_VOICE_B", "IKne3meq5aSn9XLyUdCD") # Charlie
@@ -236,10 +269,8 @@ def main():
                 # Speaker A is User, Speaker B is Agent
                 user_voice_prompt = transcript_obj.get("user_voice_prompt", "A casual male voice, slightly deep.")
                 agent_voice_prompt = transcript_obj.get("agent_voice_prompt", "A professional female customer service agent with a clear American accent.")
-                voice_a = design_voice(client, user_voice_prompt)
-                voice_b = design_voice(client, agent_voice_prompt)
-                used_voice_ids.add(voice_a)
-                used_voice_ids.add(voice_b)
+                voice_a = pick_public_voice(user_voice_prompt)
+                voice_b = pick_public_voice(agent_voice_prompt)
                 system_prompt = transcript_obj.get("system_prompt", "") if isinstance(transcript_obj, dict) else ""
                 duration = process_transcript(transcript, client, audio_path, text_path, voice_a, voice_b, system_prompt)
             
@@ -254,10 +285,6 @@ def main():
                 file_path = os.path.join(audio_dir, filename)
                 os.remove(file_path)
                 print(f"Deleted orphaned file: {filename}")
-
-    print("\nCleaning up ElevenLabs voices...")
-    if used_voice_ids:
-        cleanup_voices(client, used_voice_ids)
 
     print("\nAll audio and timestamps generated successfully!")
     print(f"Dataset ready at {dataset_jsonl}")
