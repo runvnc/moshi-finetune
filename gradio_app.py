@@ -269,19 +269,7 @@ print(f'\nDone! Subset saved to {{output_dir}}')
         yield log
 
 def run_training(base_model, hf_token, max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
-    import subprocess, sys, importlib
-    yield "Installing personaplex moshi...\n"
-    result = subprocess.run(["uv", "pip", "install", "--system", "-e", "/workspace/personaplex/moshi/", "-q"], capture_output=True, text=True)
-    if result.returncode != 0:
-        yield f"ERROR: Failed to install personaplex moshi:\n{result.stderr}\nAborting training.\n"
-        return
-    # Verify by checking where python3 imports moshi from
-    check = subprocess.run(["python3", "-c", "import moshi; print(moshi.__file__)"], capture_output=True, text=True)
-    moshi_file = check.stdout.strip()
-    if "personaplex" not in moshi_file:
-        yield f"ERROR: moshi is loading from {moshi_file!r} (not personaplex).\nAborting training.\n"
-        return
-    yield f"OK: Personaplex moshi confirmed: {moshi_file}\n"
+    import subprocess, sys
     yield "Starting LoRA Fine-Tuning...\n"
     
     # Clear existing run dir to avoid conflict
@@ -389,7 +377,7 @@ def export_model():
     yield f"\n  cd /path/to/personaplex"
     yield f"\n  git pull"
     yield f"\n  pip install -e moshi/"
-    yield f"\n  python -m moshi.server \\"
+    yield f"\n  python -m moshi_px.server \\"
     yield f"\n    --hf-repo nvidia/personaplex-7b-v1 \\"
     yield f"\n    --lora-weight {lora_abs} \\"
     yield f"\n    --lora-rank 32 --lora-scaling 2.0 \\"
