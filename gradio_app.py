@@ -275,16 +275,13 @@ def run_training(base_model, hf_token, max_steps, batch_size, learning_rate, mix
     if result.returncode != 0:
         yield f"ERROR: Failed to install personaplex moshi:\n{result.stderr}\nAborting training.\n"
         return
-    # Verify by asking pip3 show where moshi is installed
-    check = subprocess.run(["pip3", "show", "moshi"], capture_output=True, text=True)
-    moshi_location = ""
-    for line in check.stdout.splitlines():
-        if line.startswith("Location:"):
-            moshi_location = line.split(":", 1)[1].strip()
-    if "personaplex" not in moshi_location:
-        yield f"ERROR: moshi is installed at {moshi_location} (not personaplex).\nAborting training.\n"
+    # Verify by checking where python3 imports moshi from
+    check = subprocess.run(["python3", "-c", "import moshi; print(moshi.__file__)"], capture_output=True, text=True)
+    moshi_file = check.stdout.strip()
+    if "personaplex" not in moshi_file:
+        yield f"ERROR: moshi is loading from {moshi_file!r} (not personaplex).\nAborting training.\n"
         return
-    yield f"OK: Personaplex moshi confirmed at: {moshi_location}\n"
+    yield f"OK: Personaplex moshi confirmed: {moshi_file}\n"
     yield "Starting LoRA Fine-Tuning...\n"
     
     # Clear existing run dir to avoid conflict
