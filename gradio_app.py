@@ -269,18 +269,20 @@ print(f'\nDone! Subset saved to {{output_dir}}')
         yield log
 
 def run_training(base_model, hf_token, max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
-    # Preflight: verify personaplex moshi is active
-    import importlib
-    try:
-        import importlib.util
-        spec = importlib.util.find_spec("moshi")
-        moshi_file = spec.origin if spec else "not found"
-        if "personaplex" not in moshi_file:
-            yield f"WARNING: moshi loaded from {moshi_file} (not personaplex). Will install personaplex moshi before training.\n"
-        else:
-            yield f"OK: Personaplex moshi confirmed: {moshi_file}\n"
-    except Exception as e:
-        yield f"WARNING: Could not verify moshi: {e}\n"
+    import subprocess, sys, importlib
+    yield "Installing personaplex moshi...\n"
+    result = subprocess.run([sys.executable, "-m", "pip", "install", "-e", "/workspace/personaplex/moshi/", "-q"], capture_output=True, text=True)
+    if result.returncode != 0:
+        yield f"ERROR: Failed to install personaplex moshi:\n{result.stderr}\nAborting training.\n"
+        return
+    # Re-import moshi fresh after install
+    import importlib.util
+    spec = importlib.util.find_spec("moshi")
+    moshi_file = spec.origin if spec else "not found"
+    if "personaplex" not in moshi_file:
+        yield f"ERROR: personaplex moshi install succeeded but moshi is still loading from {moshi_file}\nAborting training.\n"
+        return
+    yield f"OK: Personaplex moshi confirmed: {moshi_file}\n"
     yield "Starting LoRA Fine-Tuning...\n"
     
     # Clear existing run dir to avoid conflict
@@ -344,7 +346,7 @@ run_dir: "output/custom_model"
     if hf_token:
         env["HF_TOKEN"] = hf_token
         env["HUGGING_FACE_HUB_TOKEN"] = hf_token
-    cmd = "pip install -e /workspace/personaplex/moshi/ -q && uv pip install -e . && uv run torchrun --nproc-per-node 1 -m train config_custom.yaml"
+    cmd = "uv pip install -e . && uv run torchrun --nproc-per-node 1 -m train config_custom.yaml"
     for log in run_command(cmd, env=env):
         yield log
 
