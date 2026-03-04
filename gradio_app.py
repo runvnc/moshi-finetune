@@ -269,6 +269,18 @@ print(f'\nDone! Subset saved to {{output_dir}}')
         yield log
 
 def run_training(base_model, hf_token, max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
+    # Preflight: verify personaplex moshi is active
+    import importlib
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("moshi")
+        moshi_file = spec.origin if spec else "not found"
+        if "personaplex" not in moshi_file:
+            yield f"WARNING: moshi loaded from {moshi_file} (not personaplex). Will install personaplex moshi before training.\n"
+        else:
+            yield f"OK: Personaplex moshi confirmed: {moshi_file}\n"
+    except Exception as e:
+        yield f"WARNING: Could not verify moshi: {e}\n"
     yield "Starting LoRA Fine-Tuning...\n"
     
     # Clear existing run dir to avoid conflict
