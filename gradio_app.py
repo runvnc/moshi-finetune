@@ -332,7 +332,7 @@ run_dir: "output/custom_model"
     if hf_token:
         env["HF_TOKEN"] = hf_token
         env["HUGGING_FACE_HUB_TOKEN"] = hf_token
-    cmd = "uv pip install -e . && uv run torchrun --nproc-per-node 1 -m train config_custom.yaml"
+    cmd = "pip install -e /workspace/personaplex/moshi/ -q && uv pip install -e . && uv run torchrun --nproc-per-node 1 -m train config_custom.yaml"
     for log in run_command(cmd, env=env):
         yield log
 
