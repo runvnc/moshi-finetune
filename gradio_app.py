@@ -275,14 +275,16 @@ def run_training(base_model, hf_token, max_steps, batch_size, learning_rate, mix
     if result.returncode != 0:
         yield f"ERROR: Failed to install personaplex moshi:\n{result.stderr}\nAborting training.\n"
         return
-    # Re-import moshi fresh after install
-    import importlib.util
-    spec = importlib.util.find_spec("moshi")
-    moshi_file = spec.origin if spec else "not found"
-    if "personaplex" not in moshi_file:
-        yield f"ERROR: personaplex moshi install succeeded but moshi is still loading from {moshi_file}\nAborting training.\n"
+    # Verify by asking pip3 show where moshi is installed
+    check = subprocess.run(["pip3", "show", "moshi"], capture_output=True, text=True)
+    moshi_location = ""
+    for line in check.stdout.splitlines():
+        if line.startswith("Location:"):
+            moshi_location = line.split(":", 1)[1].strip()
+    if "personaplex" not in moshi_location:
+        yield f"ERROR: moshi is installed at {moshi_location} (not personaplex).\nAborting training.\n"
         return
-    yield f"OK: Personaplex moshi confirmed: {moshi_file}\n"
+    yield f"OK: Personaplex moshi confirmed at: {moshi_location}\n"
     yield "Starting LoRA Fine-Tuning...\n"
     
     # Clear existing run dir to avoid conflict
@@ -346,7 +348,7 @@ run_dir: "output/custom_model"
     if hf_token:
         env["HF_TOKEN"] = hf_token
         env["HUGGING_FACE_HUB_TOKEN"] = hf_token
-    cmd = "uv pip install -e . && uv run torchrun --nproc-per-node 1 -m train config_custom.yaml"
+    cmd = "pip3 install -e . -q && torchrun --nproc-per-node 1 -m train config_custom.yaml"
     for log in run_command(cmd, env=env):
         yield log
 
