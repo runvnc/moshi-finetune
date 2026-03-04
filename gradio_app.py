@@ -271,14 +271,12 @@ print(f'\nDone! Subset saved to {{output_dir}}')
 def run_training(base_model, hf_token, max_steps, batch_size, learning_rate, mix_dailytalk, lora_rank, lora_scaling, duration_sec):
     import subprocess, sys, importlib
     yield "Installing personaplex moshi...\n"
-    venv_pip = "/workspace/moshi-finetune/.venv/bin/pip"
-    result = subprocess.run([venv_pip, "install", "-e", "/workspace/personaplex/moshi/", "-q"], capture_output=True, text=True)
+    result = subprocess.run(["uv", "pip", "install", "--system", "-e", "/workspace/personaplex/moshi/", "-q"], capture_output=True, text=True)
     if result.returncode != 0:
         yield f"ERROR: Failed to install personaplex moshi:\n{result.stderr}\nAborting training.\n"
         return
     # Verify by checking where python3 imports moshi from
-    venv_python = "/workspace/moshi-finetune/.venv/bin/python3"
-    check = subprocess.run([venv_python, "-c", "import moshi; print(moshi.__file__)"], capture_output=True, text=True)
+    check = subprocess.run(["python3", "-c", "import moshi; print(moshi.__file__)"], capture_output=True, text=True)
     moshi_file = check.stdout.strip()
     if "personaplex" not in moshi_file:
         yield f"ERROR: moshi is loading from {moshi_file!r} (not personaplex).\nAborting training.\n"
@@ -347,7 +345,7 @@ run_dir: "output/custom_model"
     if hf_token:
         env["HF_TOKEN"] = hf_token
         env["HUGGING_FACE_HUB_TOKEN"] = hf_token
-    cmd = "/workspace/moshi-finetune/.venv/bin/pip install -e . -q && /workspace/moshi-finetune/.venv/bin/torchrun --nproc-per-node 1 -m train config_custom.yaml"
+    cmd = "uv pip install --system -e . -q && torchrun --nproc-per-node 1 -m train config_custom.yaml"
     for log in run_command(cmd, env=env):
         yield log
 
