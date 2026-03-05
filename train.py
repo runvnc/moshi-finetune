@@ -217,7 +217,7 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
         model.text_padding_token_id,
         model.end_of_text_padding_id,
         model.zero_token_id,
-        keep_main_only=True,
+        keep_main_only=False,
     )
     interleaved_tokenizer = InterleavedTokenizer(
         mimi, interleaver, duration_sec=args.duration_sec

@@ -7,6 +7,7 @@ import google.generativeai as genai
 import pandas as pd
 import uuid
 import sys
+import re
 
 CONFIG_FILE = "ui_config.json"
 
@@ -68,6 +69,129 @@ def save_transcripts_df(df):
     except Exception as e:
         raise gr.Error(f"Failed to save dataset: Invalid JSON format. {str(e)}")
 
+def _clean_tag_noise(text):
+    if not isinstance(text, str):
+        return ""
+    text = text.strip()
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+def _normalize_dialogue(dialogue, target_turns):
+    if not isinstance(dialogue, list):
+        return []
+    out = []
+    for t in dialogue:
+        if not isinstance(t, dict):
+            continue
+        sp = str(t.get("speaker", "")).strip().upper()
+        tx = _clean_tag_noise(t.get("text", ""))
+        if sp not in {"A", "B"} or not tx:
+            continue
+        out.append({"speaker": sp, "text": tx})
+
+    # Hard rule for outbound-call behavior: user should speak first (Speaker B).
+    while out and out[0]["speaker"] != "B":
+        out.pop(0)
+
+    # Light alternation repair (drop repeated same-speaker turns).
+    fixed = []
+    prev = None
+    for turn in out:
+        if prev is not None and turn["speaker"] == prev:
+            continue
+        fixed.append(turn)
+        prev = turn["speaker"]
+
+    if target_turns and target_turns > 0:
+        fixed = fixed[: target_turns + 2]  # small tolerance
+
+    return fixed
+
+
+def _sanitize_conversations(raw, num_turns):
+    if isinstance(raw, dict) and "conversations" in raw:
+        raw = raw["conversations"]
+    if not isinstance(raw, list):
+        return []
+
+    sanitized = []
+    seen = set()
+
+    for item in raw:
+        if isinstance(item, list):
+            item = {"dialogue": item}
+        if not isinstance(item, dict):
+            continue
+
+        dialogue = _normalize_dialogue(item.get("dialogue", []), num_turns)
+        if len(dialogue) < 2:
+            continue
+        if dialogue[0]["speaker"] != "B":
+            continue
+
+        # Ensure both sides present
+        speakers = {t["speaker"] for t in dialogue}
+        if speakers != {"A", "B"} and not ({"A", "B"}.issubset(speakers) or speakers == {"A", "B"}):
+            if not ("A" in speakers and "B" in speakers):
+                continue
+
+        system_prompt = item.get("system_prompt", "")
+        if not isinstance(system_prompt, str) or not system_prompt.strip():
+            system_prompt = "<system> You are on an outgoing phone call and must wait for the user (Speaker B) to speak first before responding. <system>"
+        sp = system_prompt.strip()
+        if not (sp.startswith("<system>") and sp.endswith("<system>")):
+            sp = f"<system> {sp.strip('<> ')} <system>"
+
+        agent_voice_prompt = str(item.get("agent_voice_prompt", "")).strip()
+        user_voice_prompt = str(item.get("user_voice_prompt", "")).strip()
+
+        if "clear call recording" not in agent_voice_prompt.lower():
+            agent_voice_prompt = (agent_voice_prompt + " ").strip() + "Clear call recording. "
+        if "customer service representative" not in agent_voice_prompt.lower():
+            agent_voice_prompt = (agent_voice_prompt + " She is a customer service representative.").strip()
+        if "occasional background sounds like keyboards and faint other calls." not in agent_voice_prompt.lower():
+            agent_voice_prompt = (agent_voice_prompt + " Occasional background sounds like keyboards and faint other calls.").strip()
+
+        if "clear call recording" not in user_voice_prompt.lower():
+            user_voice_prompt = (user_voice_prompt + " ").strip() + "Clear call recording."
+        if "occasional background sounds like keyboards and faint other calls." not in user_voice_prompt.lower():
+            user_voice_prompt = (user_voice_prompt + " Occasional background sounds like keyboards and faint other calls.").strip()
+
+        sig = tuple((t["speaker"], t["text"].lower()) for t in dialogue)
+        if sig in seen:
+            continue
+        seen.add(sig)
+
+        sanitized.append({
+            "system_prompt": sp,
+            "agent_voice_prompt": agent_voice_prompt,
+            "user_voice_prompt": user_voice_prompt,
+            "dialogue": dialogue,
+        })
+
+    return sanitized
+
+
+def _dialogue_fingerprint(convo):
+    dialogue = []
+    if isinstance(convo, dict):
+        dialogue = convo.get("dialogue", [])
+    elif isinstance(convo, list):
+        dialogue = convo
+
+    norm = []
+    for t in dialogue if isinstance(dialogue, list) else []:
+        if not isinstance(t, dict):
+            continue
+        sp = str(t.get("speaker", "")).strip().upper()
+        tx = _clean_tag_noise(t.get("text", "")).lower()
+        if sp in {"A", "B"} and tx:
+            norm.append((sp, tx))
+
+    return json.dumps(norm, ensure_ascii=False)
+
+
 def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_turns):
     if not api_key:
         yield "Error: Please provide a Gemini API Key.", gr.update()
@@ -101,8 +225,11 @@ def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_tu
     correct name from their system_prompt).
     
     Format Requirements:
-    - Speaker A is the User.
-    - Speaker B is the AI Agent.
+    - Speaker A is the AI Agent.
+    - Speaker B is the User.
+    - OUTBOUND-CALL CRITICAL RULE: user speaks first after connect; assistant MUST NOT speak until after the first valid user utterance.
+    - Every dialogue MUST begin with Speaker B (User), never Speaker A.
+    - Keep first assistant turn responsive to the user's greeting/question, not a pre-emptive opener.
     - Follow the scenario description closely for who speaks first and the tone of the conversation.
     - IMPORTANT: You MUST inject ElevenLabs v3 emotion/audio tags into BOTH Speaker A and Speaker B lines to make them sound natural and human.
       Examples of valid tags: [laughs], [sighs], [angry], [cheerful], [whispering], [shouting], [sad], [excited], [nervous], [clears throat], [hmm], [gasp], [surprised], [confused], [hesitant].
@@ -131,8 +258,8 @@ def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_tu
         "agent_voice_prompt": "A cheerful young female voice with a light Southern US accent.",
         "user_voice_prompt": "An elderly male voice with a mild British accent.",
         "dialogue": [
-          {{"speaker": "A", "text": "Hello?"}},
-          {{"speaker": "B", "text": "[cheerful] Hi, how can I help you today?"}}
+          {{"speaker": "B", "text": "Hello?"}},
+          {{"speaker": "A", "text": "[cheerful] Hi, how can I help you today?"}}
         ]
       }}
     ]
@@ -164,34 +291,82 @@ def generate_transcripts(api_key, model_name, system_prompt, num_samples, num_tu
             clean_text = clean_text[3:-3].strip()
             
         new_data = json.loads(clean_text)
-        
-        # Wrap new data in UUID objects
+        sanitized = _sanitize_conversations(new_data, int(num_turns))
+        if not sanitized:
+            raise ValueError("Model output did not contain valid conversations after sanitation.")
+
+        # Wrap sanitized data in UUID objects
         new_data_with_ids = []
-        for convo in new_data:
-            if isinstance(convo, list):
-                new_data_with_ids.append({"id": str(uuid.uuid4()), "dialogue": convo})
-            else:
-                convo["id"] = str(uuid.uuid4())
-                new_data_with_ids.append(convo)
+        for convo in sanitized:
+            convo["id"] = str(uuid.uuid4())
+            new_data_with_ids.append(convo)
         
         os.makedirs("data/custom_dataset", exist_ok=True)
         output_file = "data/custom_dataset/raw_transcripts.json"
         
-        # Append to existing data
+        # Append to existing data with cross-batch dedupe
         existing_data = []
         if os.path.exists(output_file):
             with open(output_file, "r") as f:
                 existing_data = json.load(f)
-                
-        combined_data = existing_data + new_data_with_ids
-        
+
+        existing_fps = set()
+        for item in existing_data if isinstance(existing_data, list) else []:
+            fp = _dialogue_fingerprint(item)
+            if fp:
+                existing_fps.add(fp)
+
+        filtered_new = []
+        skipped_dupes = 0
+        for convo in new_data_with_ids:
+            fp = _dialogue_fingerprint(convo)
+            if not fp or fp in existing_fps:
+                skipped_dupes += 1
+                continue
+            existing_fps.add(fp)
+            filtered_new.append(convo)
+
+        combined_data = existing_data + filtered_new
+
         with open(output_file, "w") as f:
             json.dump(combined_data, f, indent=2)
-            
-        yield full_text + f"\n\n\n✅ Successfully generated {len(new_data_with_ids)} new transcripts! Total dataset size: {len(combined_data)}.", load_transcripts_df()
+
+        yield full_text + f"\n\n\n✅ Successfully generated {len(filtered_new)} validated transcripts (skipped {skipped_dupes} duplicates). Total dataset size: {len(combined_data)}.", load_transcripts_df()
         
     except Exception as e:
         yield f"Failed to generate transcripts: {str(e)}", gr.update()
+
+def generate_transcripts_batched(api_key, model_name, system_prompt, num_samples, num_turns):
+    total = int(num_samples)
+    batch_size = 50
+    if total <= 0:
+        yield "Error: num_samples must be > 0", gr.update()
+        return
+
+    completed = 0
+    batch_idx = 0
+    yield f"Starting batched generation: total={total}, batch_size={batch_size}...", load_transcripts_df()
+
+    while completed < total:
+        batch_idx += 1
+        n = min(batch_size, total - completed)
+        yield f"\n--- Batch {batch_idx}: requesting {n} conversations ---", load_transcripts_df()
+
+        last_msg = ""
+        last_df = gr.update()
+        for msg, df in generate_transcripts(api_key, model_name, system_prompt, n, num_turns):
+            # Do not stream full model output to avoid giant textbox payloads.
+            last_msg, last_df = msg, df
+
+        completed += n
+        yield f"Batch {batch_idx} complete. Progress: {completed}/{total} requested.", load_transcripts_df()
+
+        if isinstance(last_msg, str) and last_msg.lower().startswith("failed to generate transcripts"):
+            yield f"Stopped after batch {batch_idx} due to error: {last_msg}", load_transcripts_df()
+            return
+
+    yield f"✅ Batched generation done. Requested total={total}.", load_transcripts_df()
+
 
 def run_command(command, env=None):
     try:
@@ -418,7 +593,7 @@ with gr.Blocks(title="Moshi Fine-Tuning Studio") as app:
         num_samples.change(lambda x: save_config("num_samples", x), inputs=[num_samples])
         num_turns.change(lambda x: save_config("num_turns", x), inputs=[num_turns])
 
-        gen_text_btn.click(generate_transcripts, inputs=[api_key, model_name, system_prompt, num_samples, num_turns], outputs=[text_output, dataset_df])
+        gen_text_btn.click(generate_transcripts_batched, inputs=[api_key, model_name, system_prompt, num_samples, num_turns], outputs=[text_output, dataset_df])
         dataset_df.change(save_transcripts_df, inputs=[dataset_df])
 
     with gr.Tab("2. Generate Audio"):

@@ -21,22 +21,22 @@ def main():
     - Purpose: Calling various businesses to verify pre-employment background checks for different candidates.
     
     Format Requirements:
-    - Speaker A is the User (the person answering the phone at the business).
-    - Speaker B is the Agent (Alexis Kim).
-    - CRITICAL: Speaker A MUST speak first in every single conversation. The conversation must always start with the User answering the phone (e.g., "Hello?", "Acme Corp, how can I help you?").
-    - Speaker B (the Agent) speaks second, introducing themselves and stating the purpose of the call.
+    - Speaker A is the Agent (Alexis Kim).
+    - Speaker B is the User (the person answering the phone at the business).
+    - CRITICAL: Speaker B MUST speak first in every single conversation. The conversation must always start with the User answering the phone (e.g., "Hello?", "Acme Corp, how can I help you?").
+    - Speaker A (the Agent) speaks second, introducing themselves and stating the purpose of the call.
     - Each conversation should be approximately 6 to 8 turns long, covering the greeting, the initial reason for calling, and a brief back-and-forth exchange.
     - Output strictly as a JSON array of conversations. Each conversation is an array of turn objects.
     
     Example Output:
     [
       [
-        {"speaker": "A", "text": "Acme Corporation, how can I direct your call?"},
-        {"speaker": "B", "text": "Hi, this is Alexis Kim calling from Directory Services. I'm reaching out to verify employment history for a former employee of yours."}
+        {"speaker": "B", "text": "Acme Corporation, how can I direct your call?"},
+        {"speaker": "A", "text": "Hi, this is Alexis Kim calling from Directory Services. I'm reaching out to verify employment history for a former employee of yours."}
       ],
       [
-        {"speaker": "A", "text": "Hello, Human Resources."},
-        {"speaker": "B", "text": "Good morning, my name is Alexis Kim with Directory Services. I'm calling regarding a background check verification for Jane Doe."}
+        {"speaker": "B", "text": "Hello, Human Resources."},
+        {"speaker": "A", "text": "Good morning, my name is Alexis Kim with Directory Services. I'm calling regarding a background check verification for Jane Doe."}
       ]
     ]
     
