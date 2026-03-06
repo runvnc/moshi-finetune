@@ -106,6 +106,6 @@ cython_debug/
 example/debug_configs/
 
 .gradio
-data/
+data/custom_dataset/
 ui_config.json
 
