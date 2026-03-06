@@ -34,7 +34,7 @@ log_freq: 1
 eval_freq: 100
 do_eval: false
 do_ckpt: true
-ckpt_freq: 100
+ckpt_freq: 150
 
 save_adapters: true
 
